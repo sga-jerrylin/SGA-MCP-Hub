@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CredentialEntity } from './entities/credential.entity';
@@ -17,6 +17,7 @@ export class AuthVaultService {
   constructor(
     @InjectRepository(CredentialEntity)
     private readonly repo: Repository<CredentialEntity>,
+    @Inject('VAULT_MASTER_KEY')
     private readonly masterKey: Buffer
   ) {}
 
@@ -84,5 +85,21 @@ export class AuthVaultService {
   async deleteCredential(tenantId: string, serverId: string, keyName: string): Promise<boolean> {
     const result = await this.repo.delete({ tenantId, serverId, keyName });
     return (result.affected ?? 0) > 0;
+  }
+
+  async listKeys(
+    tenantId: string,
+    serverId: string
+  ): Promise<Array<{ keyName: string; updatedAt: Date }>> {
+    const credentials = await this.repo.find({
+      where: { tenantId, serverId },
+      select: { keyName: true, updatedAt: true },
+      order: { updatedAt: 'DESC' }
+    });
+
+    return credentials.map((item) => ({
+      keyName: item.keyName,
+      updatedAt: item.updatedAt
+    }));
   }
 }

@@ -7,6 +7,7 @@ import type {
 } from '@sga/shared';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type * as Minio from 'minio';
+import { AuthVaultService } from '../auth-vault/auth-vault.service';
 import { MinioService } from '../storage/minio.service';
 
 interface ManifestSidecar {
@@ -17,7 +18,10 @@ interface ManifestSidecar {
 
 @Injectable()
 export class RuntimeService {
-  public constructor(private readonly minio: MinioService) {}
+  public constructor(
+    private readonly minio: MinioService,
+    private readonly vault: AuthVaultService
+  ) {}
 
   public async listServers(): Promise<McpServer[]> {
     const sidecars = await this.loadAllSidecars();
@@ -31,7 +35,7 @@ export class RuntimeService {
     );
   }
 
-  public async getServer(id: string): Promise<McpServerDetail> {
+  public async getServer(id: string): Promise<McpServerDetail & { credentialsConfigured: boolean }> {
     const sidecar = await this.readManifestSidecarById(id).catch(() => null);
     if (!sidecar) {
       throw new NotFoundException(`Server ${id} not found`);
@@ -39,9 +43,11 @@ export class RuntimeService {
 
     const base = this.toServer(sidecar.manifest, this.computeShardIndex(id), sidecar.pushedAt);
     const tools = this.toTools(sidecar.manifest);
+    const credentials = await this.vault.listKeys('default', id).catch(() => []);
 
     return {
       ...base,
+      credentialsConfigured: credentials.length > 0,
       tools,
       metrics: {
         qps: 0,

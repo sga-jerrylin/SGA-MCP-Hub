@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { AuthVaultModule } from './auth-vault/auth-vault.module';
 import { ConfigModule } from './config/config.module';
 import { DbModule } from './db/db.module';
 import { DeployModule } from './deploy/deploy.module';
@@ -25,6 +26,7 @@ import { SyncModule } from './sync/sync.module';
     DeployModule,
     RuntimeModule,
     AuthModule,
+    AuthVaultModule,
     GeneratorModule,
     MonitorModule,
     MarketModule,

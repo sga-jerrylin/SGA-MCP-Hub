@@ -6,6 +6,8 @@ import { DbModule } from './db/db.module';
 import { DeployModule } from './deploy/deploy.module';
 import { GeneratorModule } from './generator/generator.module';
 import { HealthController } from './health/health.controller';
+import { MarketModule } from './market/market.module';
+import { McpModule } from './mcp/mcp.module';
 import { MonitorModule } from './monitor/monitor.module';
 import { RedisModule } from './redis/redis.module';
 import { RepoModule } from './repo/repo.module';
@@ -24,7 +26,9 @@ import { SyncModule } from './sync/sync.module';
     RuntimeModule,
     AuthModule,
     GeneratorModule,
-    MonitorModule
+    MonitorModule,
+    MarketModule,
+    McpModule
   ],
   controllers: [HealthController],
   providers: []

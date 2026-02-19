@@ -47,6 +47,14 @@ export class AuthGuard implements CanActivate {
       return method === 'POST';
     }
 
+    if (path === '/api/mcp') {
+      return method === 'GET';
+    }
+
+    if (path.startsWith('/api/market/')) {
+      return method === 'GET';
+    }
+
     return this.pathWhitelist.has(path);
   }
 

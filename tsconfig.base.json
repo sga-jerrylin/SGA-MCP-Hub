@@ -12,10 +12,10 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@mcp-claw/shared": ["packages/shared/types/api.ts"],
-      "@mcp-claw/shared/*": ["packages/shared/*"],
-      "@mcp-claw/core": ["packages/core/src/index.ts"],
-      "@mcp-claw/core/*": ["packages/core/src/*"]
+      "@sga/shared": ["../mcp/packages/shared/dist/types/api"],
+      "@sga/shared/*": ["../mcp/packages/shared/dist/*"],
+      "@sga/core": ["../mcp/packages/core/dist/index"],
+      "@sga/core/*": ["../mcp/packages/core/dist/*"]
     }
   }
 }

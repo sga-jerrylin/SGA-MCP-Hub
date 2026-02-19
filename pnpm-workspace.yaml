@@ -1,3 +1,5 @@
 packages:
   - 'packages/backend'
   - 'packages/frontend'
+  - '../mcp/packages/shared'
+  - '../mcp/packages/core'

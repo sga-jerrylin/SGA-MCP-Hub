@@ -14,7 +14,8 @@ export const EnvSchema = z.object({
   OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
   LLM_CODER_MODEL: z.string().default('openai/gpt-5.2-codex'),
   LLM_PARSER_MODEL: z.string().default('anthropic/claude-haiku-4.5'),
-  LLM_AGENT_MODEL: z.string().default('anthropic/claude-sonnet-4.5')
+  LLM_AGENT_MODEL: z.string().default('anthropic/claude-sonnet-4.5'),
+  MARKET_URL: z.string().default('http://localhost:3100')
 });
 
 export type Env = z.infer<typeof EnvSchema>;

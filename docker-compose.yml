@@ -1,0 +1,91 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16
+    container_name: mcp-claw-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mcp_claw_dev
+      POSTGRES_USER: mcp
+      POSTGRES_PASSWORD: mcp_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mcp -d mcp_claw_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: mcp-claw-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: mcp-claw-minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: mcp-claw-backend
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://mcp:mcp_dev@postgres:5432/mcp_claw_dev
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      CORS_ORIGIN: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+    container_name: mcp-claw-frontend
+    restart: unless-stopped
+    ports:
+      - '3000:80'
+    depends_on:
+      - backend
+
+volumes:
+  pgdata: {}
+  miniodata: {}

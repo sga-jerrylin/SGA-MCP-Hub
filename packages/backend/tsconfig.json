@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "paths": {
+      "@sga/shared": ["packages/shared/dist/types/api"],
+      "@sga/shared/*": ["packages/shared/dist/*"],
+      "@sga/core": ["packages/core/dist/index"],
+      "@sga/core/*": ["packages/core/dist/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

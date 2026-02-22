@@ -7,7 +7,7 @@ export function createDataSourceOptions(env: Pick<Env, 'DATABASE_URL'>): DataSou
     url: env.DATABASE_URL,
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-    synchronize: false,
+    synchronize: true,
     logging: false
   };
 }

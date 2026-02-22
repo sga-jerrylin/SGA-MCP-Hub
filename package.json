@@ -2,8 +2,8 @@
   "name": "sga-mcp-hub",
   "private": true,
   "scripts": {
-    "dev:backend": "pnpm --filter @sga/hub-backend dev",
-    "dev:frontend": "pnpm --filter @sga/hub-frontend dev",
-    "build": "pnpm --filter @sga/hub-backend build && pnpm --filter @sga/hub-frontend build"
+    "dev:backend": "pnpm --filter @sga/backend dev",
+    "dev:frontend": "pnpm --filter @sga/frontend dev",
+    "build": "pnpm --filter @sga/backend build && pnpm --filter @sga/frontend build"
   }
 }

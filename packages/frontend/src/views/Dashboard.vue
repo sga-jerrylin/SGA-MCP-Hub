@@ -1,121 +1,45 @@
-<template>
+﻿<template>
   <div class="dashboard-view">
-    <!-- ── 页面头部 ───────────────────────────────── -->
     <div class="dash-header">
       <h2 class="dash-title">系统概览</h2>
       <div class="dash-status">
         <span class="status-dot" />
-        <span>MCP Runtime：运行中</span>
+        <span>MCP Runtime: 运行中</span>
         <span class="status-sep">|</span>
-        <span>版本：v{{ appVersion }}</span>
+        <span>版本: v{{ appVersion }}</span>
         <span class="status-sep">|</span>
-        <span>运行时间：{{ uptimeLabel }}</span>
+        <span>运行时间: {{ uptimeLabel }}</span>
       </div>
     </div>
 
-    <!-- ── Hub 拓扑图 ─────────────────────────────── -->
-    <a-card :bordered="false" class="hub-card">
-      <div class="hub-layout">
-        <!-- 上游业务系统 -->
-        <div class="hub-side">
-          <div class="hub-side-header">
-            上游业务系统
-            <span class="hub-badge">{{ upstreamSystems.length }}</span>
-          </div>
-          <div class="hub-list">
-            <div
-              v-for="sys in upstreamSystems"
-              :key="sys.id"
-              class="hub-item"
-              :class="{ 'hub-item--active': sys.online }"
-            >
-              <span class="hub-item-icon">{{ sys.icon }}</span>
-              <div class="hub-item-info">
-                <div class="hub-item-name">{{ sys.name }}</div>
-                <div class="hub-item-meta">{{ sys.env }} / {{ sys.auth }}</div>
-              </div>
-              <span class="hub-dot" :class="sys.online ? 'hub-dot--green' : 'hub-dot--gray'" />
-            </div>
-            <div v-if="upstreamSystems.length === 0" class="hub-empty">暂无接入</div>
-          </div>
-        </div>
+    <a-row :gutter="[16, 16]" class="metrics-row">
+      <a-col :xs="24" :sm="12" :xl="6">
+        <a-card :bordered="false" :loading="loading">
+          <div class="metric-value">{{ summary?.totalPackages ?? 0 }}</div>
+          <div class="metric-label">已发布工具</div>
+        </a-card>
+      </a-col>
+      <a-col :xs="24" :sm="12" :xl="6">
+        <a-card :bordered="false" :loading="loading">
+          <div class="metric-value metric-value--green">{{ successRate }}</div>
+          <div class="metric-label">成功率</div>
+        </a-card>
+      </a-col>
+      <a-col :xs="24" :sm="12" :xl="6">
+        <a-card :bordered="false" :loading="loading">
+          <div class="metric-value">{{ summary?.totalCallsLast24h ?? 0 }}</div>
+          <div class="metric-label">今日请求</div>
+        </a-card>
+      </a-col>
+      <a-col :xs="24" :sm="12" :xl="6">
+        <a-card :bordered="false" :loading="loading">
+          <div class="metric-value metric-value--blue">{{ avgLatencyMs }}ms</div>
+          <div class="metric-label">平均耗时</div>
+        </a-card>
+      </a-col>
+    </a-row>
 
-        <!-- 连线 左侧 -->
-        <div class="hub-connector">
-          <div class="hub-line" />
-          <div class="hub-arrow-head">▶</div>
-        </div>
-
-        <!-- MCP HUB 中心 -->
-        <div class="hub-center">
-          <div class="hub-ring hub-ring--outer">
-            <div class="hub-ring hub-ring--middle">
-              <div class="hub-core">
-                <span class="hub-core-icon">⚙</span>
-                <span class="hub-core-label">Runtime</span>
-              </div>
-            </div>
-          </div>
-          <div class="hub-shards">
-            <span class="hub-shards-num">{{ summary?.activeServers ?? 0 }}</span>
-            <span class="hub-shards-label">SHARDS</span>
-          </div>
-          <div class="hub-center-title">MCP HUB（本机）</div>
-        </div>
-
-        <!-- 连线 右侧 -->
-        <div class="hub-connector">
-          <div class="hub-arrow-head">▶</div>
-          <div class="hub-line" />
-        </div>
-
-        <!-- 下游 AGENT -->
-        <div class="hub-side">
-          <div class="hub-side-header">
-            下游 AGENT
-            <span class="hub-badge">{{ downstreamAgents.length }}</span>
-          </div>
-          <div class="hub-list">
-            <div v-for="agent in downstreamAgents" :key="agent.id" class="hub-item hub-item--agent">
-              <span class="hub-item-icon">{{ agent.icon }}</span>
-              <div class="hub-item-info">
-                <div class="hub-item-name">{{ agent.name }}</div>
-                <div class="hub-item-meta">{{ agent.sub }}</div>
-              </div>
-              <span class="hub-item-time">{{ agent.lastSeen }}</span>
-            </div>
-            <div v-if="downstreamAgents.length === 0" class="hub-empty">暂无连接</div>
-          </div>
-        </div>
-      </div>
-    </a-card>
-
-    <!-- ── 大指标行 ──────────────────────────────── -->
-    <div class="metrics-row">
-      <div class="metric-item" :class="{ 'metric-item--loading': loading }">
-        <div class="metric-value">{{ summary?.totalPackages ?? 0 }}</div>
-        <div class="metric-label">已发布工具</div>
-      </div>
-      <div class="metric-divider" />
-      <div class="metric-item">
-        <div class="metric-value metric-value--green">{{ successRate }}</div>
-        <div class="metric-label">今日成功率</div>
-      </div>
-      <div class="metric-divider" />
-      <div class="metric-item">
-        <div class="metric-value">{{ summary?.totalCallsLast24h ?? 0 }}</div>
-        <div class="metric-label">今日请求总量</div>
-      </div>
-      <div class="metric-divider" />
-      <div class="metric-item">
-        <div class="metric-value metric-value--blue">{{ avgLatencyMs }}ms</div>
-        <div class="metric-label">平均耗时</div>
-      </div>
-    </div>
-
-    <!-- ── 图表行 ─────────────────────────────────── -->
     <a-row :gutter="[16, 16]">
-      <!-- 24h 调用量趋势 -->
       <a-col :xs="24" :lg="12">
         <a-card title="24h 调用量趋势" :bordered="false" :loading="loading">
           <div v-if="trendBars.length > 0" class="trend-chart">
@@ -132,7 +56,6 @@
         </a-card>
       </a-col>
 
-      <!-- Top 5 热门工具 -->
       <a-col :xs="24" :lg="12">
         <a-card title="Top 5 热门工具" :bordered="false" :loading="loading">
           <div class="top-tools">
@@ -158,39 +81,17 @@
   import { computed, onMounted, ref } from 'vue';
   import http from '@/utils/http';
 
-  // ── 状态 ───────────────────────────────────────
   const loading = ref(false);
   const summary = ref<DashboardSummary | null>(null);
   const appVersion = ref('--');
 
-  // 平均延迟：从后端 DashboardSummary 获取
   const avgLatencyMs = computed(() => summary.value?.avgLatencyMs ?? 0);
 
-  // 成功率：从后端 DashboardSummary 获取
   const successRate = computed(() => {
     const rate = summary.value?.successRate;
     return rate != null ? `${rate.toFixed(1)}%` : '--';
   });
 
-  // 上游系统 / 下游 Agent — 待用户在设置页注册后从后端获取
-  const upstreamSystems: {
-    id: number;
-    name: string;
-    env: string;
-    auth: string;
-    icon: string;
-    online: boolean;
-  }[] = [];
-
-  const downstreamAgents: {
-    id: number;
-    name: string;
-    sub: string;
-    icon: string;
-    lastSeen: string;
-  }[] = [];
-
-  // ── 计算属性 ────────────────────────────────────
   const uptimeLabel = computed(() => {
     const s = summary.value?.uptimeSeconds ?? 0;
     const h = Math.floor(s / 3600);
@@ -198,9 +99,7 @@
     return `${h}h ${m}m`;
   });
 
-  const topFiveTools = computed<ToolCallStat[]>(() => {
-    return (summary.value?.topTools ?? []).slice(0, 5);
-  });
+  const topFiveTools = computed<ToolCallStat[]>(() => (summary.value?.topTools ?? []).slice(0, 5));
 
   const trendBars = computed(() => {
     const points = summary.value?.hourlyTrend ?? [];
@@ -213,7 +112,6 @@
     }));
   });
 
-  // ── 数据加载 ────────────────────────────────────
   const fetchDashboard = async (): Promise<void> => {
     loading.value = true;
     try {
@@ -228,12 +126,12 @@
 
   const fetchSystemInfo = async (): Promise<void> => {
     try {
-      const res = (await http.get<ApiResponse<{ appVersion: string; uptimeSeconds: number }>>(
+      const res = (await http.get<ApiResponse<{ appVersion: string }>>(
         '/admin/system-info'
-      )) as unknown as ApiResponse<{ appVersion: string; uptimeSeconds: number }>;
+      )) as unknown as ApiResponse<{ appVersion: string }>;
       appVersion.value = res.data.appVersion;
     } catch {
-      // fallback to '--'
+      appVersion.value = '--';
     }
   };
 
@@ -244,25 +142,18 @@
 </script>
 
 <style scoped lang="less">
-  // ── 布局变量 ─────────────────────────────────────
   @blue: #2563eb;
-  @blue-light: #eff6ff;
   @green: #16a34a;
-  @amber: #f59e0b;
-  @red: #ef4444;
   @text-primary: #0f172a;
   @text-secondary: #64748b;
-  @border: #e2e8f0;
   @card-radius: 12px;
 
   .dashboard-view {
-    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
   }
 
-  // ── 页面头部 ─────────────────────────────────────
   .dash-header {
     display: flex;
     align-items: center;
@@ -286,7 +177,7 @@
     background: #f8fafc;
     padding: 6px 14px;
     border-radius: 20px;
-    border: 1px solid @border;
+    border: 1px solid #e2e8f0;
   }
 
   .status-dot {
@@ -295,272 +186,15 @@
     border-radius: 50%;
     background: @green;
     box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25);
-    }
-    50% {
-      box-shadow: 0 0 0 5px rgba(22, 163, 74, 0.08);
-    }
   }
 
   .status-sep {
-    color: @border;
+    color: #e2e8f0;
     font-size: 14px;
   }
 
-  // ── Hub 拓扑 ─────────────────────────────────────
-  .hub-card {
-    border-radius: @card-radius !important;
-    :deep(.ant-card-body) {
-      padding: 20px 24px;
-    }
-  }
-
-  .hub-layout {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    min-height: 240px;
-  }
-
-  .hub-side {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hub-side-header {
-    font-size: 13px;
-    font-weight: 600;
-    color: @text-secondary;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .hub-badge {
-    background: @blue;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 1px 7px;
-    border-radius: 10px;
-  }
-
-  .hub-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .hub-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
-    border-radius: 8px;
-    border: 1px solid @border;
-    background: #fafafa;
-    transition: border-color 0.2s;
-
-    &--active {
-      border-color: #bfdbfe;
-      background: @blue-light;
-    }
-
-    &--agent {
-      background: #f9fafb;
-    }
-  }
-
-  .hub-item-icon {
-    font-size: 18px;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-
-  .hub-item-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hub-item-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: @text-primary;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .hub-item-meta {
-    font-size: 11px;
-    color: @text-secondary;
-    margin-top: 1px;
-  }
-
-  .hub-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-
-    &--green {
-      background: @green;
-    }
-    &--gray {
-      background: #cbd5e1;
-    }
-  }
-
-  .hub-item-time {
-    font-size: 11px;
-    color: @text-secondary;
-    white-space: nowrap;
-  }
-
-  // ── 连接器 ───────────────────────────────────────
-  .hub-empty {
-    font-size: 12px;
-    color: @text-secondary;
-    text-align: center;
-    padding: 12px 0;
-    font-style: italic;
-  }
-
-  .hub-connector {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    padding: 0 8px;
-  }
-
-  .hub-line {
-    width: 40px;
-    height: 2px;
-    background: repeating-linear-gradient(
-      90deg,
-      @blue 0px,
-      @blue 6px,
-      transparent 6px,
-      transparent 12px
-    );
-  }
-
-  .hub-arrow-head {
-    color: @blue;
-    font-size: 12px;
-    line-height: 1;
-  }
-
-  // ── Hub 中心 ─────────────────────────────────────
-  .hub-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-    padding: 0 8px;
-  }
-
-  .hub-ring {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-
-    &--outer {
-      width: 120px;
-      height: 120px;
-      border: 2px dashed #bfdbfe;
-      background: transparent;
-    }
-
-    &--middle {
-      width: 92px;
-      height: 92px;
-      border: 2px solid @blue;
-      background: @blue-light;
-    }
-  }
-
-  .hub-core {
-    width: 68px;
-    height: 68px;
-    border-radius: 50%;
-    background: #1e3a5f;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-  }
-
-  .hub-core-icon {
-    font-size: 20px;
-    line-height: 1;
-  }
-
-  .hub-core-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #93c5fd;
-    letter-spacing: 0.5px;
-  }
-
-  .hub-shards {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: 1;
-  }
-
-  .hub-shards-num {
-    font-size: 22px;
-    font-weight: 800;
-    color: @blue;
-  }
-
-  .hub-shards-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: @text-secondary;
-    letter-spacing: 1px;
-  }
-
-  .hub-center-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: @text-secondary;
-    white-space: nowrap;
-  }
-
-  // ── 大指标行 ─────────────────────────────────────
-  .metrics-row {
-    display: flex;
-    align-items: center;
-    background: #fff;
+  .metrics-row :deep(.ant-card) {
     border-radius: @card-radius;
-    border: 1px solid @border;
-    padding: 20px 32px;
-    gap: 0;
-  }
-
-  .metric-item {
-    flex: 1;
-    text-align: center;
-    padding: 4px 0;
-
-    &--loading .metric-value {
-      opacity: 0.4;
-    }
   }
 
   .metric-value {
@@ -568,37 +202,28 @@
     font-weight: 800;
     color: @text-primary;
     line-height: 1.1;
-    letter-spacing: -1px;
 
     &--green {
       color: @green;
     }
+
     &--blue {
       color: @blue;
     }
   }
 
   .metric-label {
+    margin-top: 4px;
     font-size: 13px;
     color: @text-secondary;
-    margin-top: 4px;
   }
 
-  .metric-divider {
-    width: 1px;
-    height: 48px;
-    background: @border;
-    flex-shrink: 0;
-  }
-
-  // ── 趋势图 ───────────────────────────────────────
   .trend-chart {
     display: flex;
     align-items: flex-end;
     gap: 3px;
     height: 160px;
     padding-bottom: 24px;
-    position: relative;
   }
 
   .trend-col {
@@ -624,7 +249,6 @@
     background: @blue;
     border-radius: 3px 3px 0 0;
     min-height: 3px;
-    transition: height 0.3s ease;
     position: relative;
 
     &:hover .trend-tip {
@@ -642,10 +266,10 @@
     color: #fff;
     padding: 1px 5px;
     border-radius: 3px;
-    white-space: nowrap;
     opacity: 0;
     transition: opacity 0.15s;
     pointer-events: none;
+    white-space: nowrap;
   }
 
   .trend-label {
@@ -656,7 +280,6 @@
     line-height: 1;
   }
 
-  // ── Top 5 工具 ───────────────────────────────────
   .top-tools {
     display: flex;
     flex-direction: column;
@@ -678,14 +301,14 @@
     justify-content: center;
     font-size: 11px;
     font-weight: 800;
-    flex-shrink: 0;
     color: #fff;
+    flex-shrink: 0;
 
     &--1 {
       background: #ef4444;
     }
     &--2 {
-      background: @amber;
+      background: #f59e0b;
     }
     &--3 {
       background: @blue;
@@ -723,5 +346,4 @@
     color: @blue;
     flex-shrink: 0;
   }
-
 </style>

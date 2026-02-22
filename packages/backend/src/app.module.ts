@@ -4,8 +4,6 @@ import { AuthModule } from './auth/auth.module';
 import { AuthVaultModule } from './auth-vault/auth-vault.module';
 import { ConfigModule } from './config/config.module';
 import { DbModule } from './db/db.module';
-import { DeployModule } from './deploy/deploy.module';
-import { GeneratorModule } from './generator/generator.module';
 import { HealthController } from './health/health.controller';
 import { MarketModule } from './market/market.module';
 import { McpModule } from './mcp/mcp.module';
@@ -23,11 +21,9 @@ import { SyncModule } from './sync/sync.module';
     RepoModule,
     SyncModule,
     AdminModule,
-    DeployModule,
     RuntimeModule,
     AuthModule,
     AuthVaultModule,
-    GeneratorModule,
     MonitorModule,
     MarketModule,
     McpModule

@@ -1,6 +1,5 @@
-﻿import type { PaginatedList, SseEvent } from '@sga/shared';
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Subject } from 'rxjs';
+﻿import type { PaginatedList } from '@sga/shared';
+import { Injectable } from '@nestjs/common';
 import { RuntimeService } from '../runtime/runtime.service';
 
 export interface AuditLog {
@@ -17,22 +16,6 @@ export interface SystemMetricsSnapshot {
   activeRequests: number;
   totalPackages: number;
   totalServers: number;
-}
-
-export interface AgentRun {
-  runId: string;
-  root: string;
-  status: 'running' | 'done' | 'error';
-  startedAt: string;
-  events: SseEvent[];
-}
-
-export interface AgentRunSummary {
-  runId: string;
-  root: string;
-  status: 'running' | 'done' | 'error';
-  startedAt: string;
-  eventCount: number;
 }
 
 interface ToolCallRecord {
@@ -73,8 +56,6 @@ export class MonitorService {
   public constructor(private readonly runtimeService: RuntimeService) {}
 
   private readonly auditLogs: AuditLog[] = [];
-  private readonly agentRuns = new Map<string, AgentRun>();
-  private readonly eventStreams = new Map<string, Subject<SseEvent>>();
   private readonly toolCalls: ToolCallRecord[] = [];
 
   public async getMetrics(): Promise<SystemMetricsSnapshot> {
@@ -112,76 +93,6 @@ export class MonitorService {
       resource,
       createdAt: new Date().toISOString()
     });
-  }
-
-  public createRun(root: string): string {
-    const runId = `run_${Date.now()}`;
-    const run: AgentRun = {
-      runId,
-      root,
-      status: 'running',
-      startedAt: new Date().toISOString(),
-      events: []
-    };
-
-    this.agentRuns.set(runId, run);
-    this.eventStreams.set(runId, new Subject<SseEvent>());
-    return runId;
-  }
-
-  public appendEvent(runId: string, event: SseEvent): void {
-    const run = this.agentRuns.get(runId);
-    if (!run) {
-      throw new NotFoundException(`CLI run not found: ${runId}`);
-    }
-
-    run.events.push(event);
-    if (event.type === 'done') {
-      run.status = 'done';
-    } else if (event.type === 'error') {
-      run.status = 'error';
-    } else {
-      run.status = 'running';
-    }
-
-    const stream = this.eventStreams.get(runId);
-    stream?.next(event);
-  }
-
-  public getRuns(): AgentRun[] {
-    return Array.from(this.agentRuns.values()).sort((left, right) =>
-      right.startedAt.localeCompare(left.startedAt)
-    );
-  }
-
-  public getRunSummaries(): AgentRunSummary[] {
-    return Array.from(this.agentRuns.values())
-      .map((run) => ({
-        runId: run.runId,
-        root: run.root,
-        status: run.status,
-        startedAt: run.startedAt,
-        eventCount: run.events.length
-      }))
-      .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
-  }
-
-  public getEvents(runId: string): SseEvent[] {
-    const run = this.agentRuns.get(runId);
-    if (!run) {
-      throw new NotFoundException(`CLI run not found: ${runId}`);
-    }
-
-    return [...run.events];
-  }
-
-  public getEventStream(runId: string): Subject<SseEvent> {
-    const stream = this.eventStreams.get(runId);
-    if (!stream) {
-      throw new NotFoundException(`CLI run not found: ${runId}`);
-    }
-
-    return stream;
   }
 
   public recordToolCall(

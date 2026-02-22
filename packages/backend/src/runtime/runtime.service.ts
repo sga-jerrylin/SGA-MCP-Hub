@@ -30,13 +30,7 @@ export class RuntimeService {
   public async listServers(): Promise<McpServer[]> {
     const sidecars = await this.loadAllSidecars();
 
-    return sidecars.map((sidecar, index) =>
-      this.toServer(
-        sidecar.manifest,
-        this.computeShardIndex(sidecar.packageId, index),
-        sidecar.pushedAt
-      )
-    );
+    return sidecars.map((sidecar) => this.toServer(sidecar.manifest, sidecar.pushedAt));
   }
 
   public async getServer(id: string): Promise<McpServerDetail & { credentialsConfigured: boolean }> {
@@ -45,7 +39,7 @@ export class RuntimeService {
       throw new NotFoundException(`Server ${id} not found`);
     }
 
-    const base = this.toServer(sidecar.manifest, this.computeShardIndex(id), sidecar.pushedAt);
+    const base = this.toServer(sidecar.manifest, sidecar.pushedAt);
     const tools = this.toTools(sidecar.manifest);
     const credentials = await this.vault.listKeys('default', id).catch(() => []);
 
@@ -128,19 +122,17 @@ export class RuntimeService {
     });
   }
 
-  private toServer(pkg: Package, shardIndex: number, pushedAt: string): McpServer {
-    const port = 8080 + shardIndex;
-
+  private toServer(pkg: Package, pushedAt: string): McpServer {
     return {
       id: pkg.id,
       name: pkg.name,
-      shardIndex,
+      shardIndex: 0,
       status: 'pending',
       toolCount: pkg.toolCount,
       tokenUsage: Math.min(pkg.toolCount * 120, 8000),
       tokenBudget: 8000,
-      endpoint: `http://localhost:${port}`,
-      port,
+      endpoint: '/api/mcp',
+      port: 0,
       createdAt: pushedAt || pkg.publishedAt
     };
   }
@@ -177,15 +169,6 @@ export class RuntimeService {
     }
 
     return tools;
-  }
-
-  private computeShardIndex(packageId: string, fallbackIndex = 0): number {
-    let hash = 0;
-    for (const char of packageId) {
-      hash = (hash * 31 + char.charCodeAt(0)) | 0;
-    }
-    const normalized = Math.abs(hash || fallbackIndex + 1);
-    return (normalized % 13) + 1;
   }
 
   private async readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {

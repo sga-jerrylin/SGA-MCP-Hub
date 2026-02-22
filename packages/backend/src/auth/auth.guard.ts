@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthService } from './auth.service';
 
 interface RequestLike {
   method?: string;
@@ -11,6 +12,8 @@ interface RequestLike {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  public constructor(private readonly authService: AuthService) {}
+
   private readonly pathWhitelist = new Set(['/api/auth/login', '/api/health', '/api/auth/me']);
 
   public canActivate(context: ExecutionContext): boolean {
@@ -27,6 +30,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing Bearer token');
     }
 
+    this.authService.getMe(token);
     return true;
   }
 
@@ -37,10 +41,6 @@ export class AuthGuard implements CanActivate {
 
     if (path === '/api/health') {
       return method === 'GET';
-    }
-
-    if (path.startsWith('/api/monitor/cli-runs')) {
-      return method === 'POST' || method === 'GET';
     }
 
     if (path === '/api/monitor/tool-calls') {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <a-layout class="main-layout">
     <a-layout-sider
       v-model:collapsed="appStore.sidebarCollapsed"
@@ -23,39 +23,33 @@
           <template #icon><DashboardOutlined /></template>
           <span>概览</span>
         </a-menu-item>
-        <a-menu-item key="generator">
-          <template #icon><ThunderboltOutlined /></template>
-          <span>生成器</span>
-        </a-menu-item>
-        <a-menu-item key="library">
-          <template #icon><ToolOutlined /></template>
-          <span>工具库</span>
-        </a-menu-item>
-        <a-sub-menu key="runtime">
-          <template #icon><DeploymentUnitOutlined /></template>
-          <template #title>部署与运行时</template>
-          <a-menu-item key="servers">Server 目录</a-menu-item>
-          <a-menu-item key="deploy">部署发布</a-menu-item>
-        </a-sub-menu>
+
         <a-menu-item key="repository">
           <template #icon><AppstoreOutlined /></template>
-          <span>配置仓库</span>
+          <span>工具仓库</span>
         </a-menu-item>
+
         <a-menu-item key="connect">
           <template #icon><ApiOutlined /></template>
           <span>Hub 接入</span>
         </a-menu-item>
+
         <a-menu-item key="monitor">
           <template #icon><LineChartOutlined /></template>
           <span>运行监控</span>
         </a-menu-item>
 
-        <a-sub-menu key="admin">
+        <a-sub-menu key="system">
           <template #icon><SettingOutlined /></template>
           <template #title>系统管理</template>
-          <a-menu-item key="tenants">租户管理</a-menu-item>
-          <a-menu-item key="ai-settings">AI 引擎</a-menu-item>
-          <a-menu-item key="market-settings">Market 连接</a-menu-item>
+          <a-menu-item key="market-settings">
+            <template #icon><ShopOutlined /></template>
+            <span>Market 连接</span>
+          </a-menu-item>
+          <a-menu-item key="tenants">
+            <template #icon><KeyOutlined /></template>
+            <span>认证管理</span>
+          </a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>
@@ -84,19 +78,18 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch } from 'vue';
-  import { useRouter, useRoute } from 'vue-router';
+  import { computed, ref, watch } from 'vue';
+  import { useRoute, useRouter } from 'vue-router';
   import {
-    MenuUnfoldOutlined,
-    MenuFoldOutlined,
-    DashboardOutlined,
-    ThunderboltOutlined,
+    ApiOutlined,
     AppstoreOutlined,
-    SettingOutlined,
-    ToolOutlined,
-    DeploymentUnitOutlined,
+    DashboardOutlined,
+    KeyOutlined,
     LineChartOutlined,
-    ApiOutlined
+    MenuFoldOutlined,
+    MenuUnfoldOutlined,
+    SettingOutlined,
+    ShopOutlined
   } from '@ant-design/icons-vue';
   import { useAppStore } from '@/store/app';
 
@@ -105,20 +98,33 @@
   const appStore = useAppStore();
 
   const selectedKeys = ref<string[]>([]);
-  const openKeys = ref<string[]>(['admin']);
+  const openKeys = ref<string[]>(['system']);
 
   const getMenuKey = (path: string): string => {
-    if (path.startsWith('/generator')) return 'generator';
-    if (path.startsWith('/library')) return 'library';
-    if (path.startsWith('/runtime/servers')) return 'servers';
-    if (path.startsWith('/runtime/deploy')) return 'deploy';
     if (path.startsWith('/repository')) return 'repository';
     if (path.startsWith('/connect')) return 'connect';
     if (path.startsWith('/monitor')) return 'monitor';
-    if (path.startsWith('/admin/tenants')) return 'tenants';
-    if (path.startsWith('/settings/ai')) return 'ai-settings';
     if (path.startsWith('/settings/market')) return 'market-settings';
+    if (path.startsWith('/admin/tenants')) return 'tenants';
     return 'dashboard';
+  };
+
+  const menuRouteMap: Record<string, string> = {
+    dashboard: '/',
+    repository: '/repository',
+    connect: '/connect',
+    monitor: '/monitor',
+    'market-settings': '/settings/market',
+    tenants: '/admin/tenants'
+  };
+
+  const pageTitleMap: Record<string, string> = {
+    dashboard: '概览',
+    repository: '工具仓库',
+    connect: 'Hub 接入',
+    monitor: '运行监控',
+    'market-settings': 'Market 连接',
+    tenants: '认证管理'
   };
 
   watch(
@@ -129,38 +135,7 @@
     { immediate: true }
   );
 
-  const menuRouteMap: Record<string, string> = {
-    dashboard: '/',
-    generator: '/generator',
-    library: '/library',
-    servers: '/runtime/servers',
-    deploy: '/runtime/deploy',
-    repository: '/repository',
-    connect: '/connect',
-    monitor: '/monitor',
-    tenants: '/admin/tenants',
-    'ai-settings': '/settings/ai',
-    'market-settings': '/settings/market'
-  };
-
-  const pageTitleMap: Record<string, string> = {
-    dashboard: '概览',
-    generator: '生成器',
-    library: '工具库',
-    servers: 'Server 目录',
-    deploy: '部署发布',
-    repository: '配置仓库',
-    connect: 'Hub 接入',
-    monitor: '运行监控',
-    tenants: '租户管理',
-    'ai-settings': 'AI 引擎',
-    'market-settings': 'Market 连接'
-  };
-
-  const currentPageTitle = computed(() => {
-    const key = getMenuKey(route.path);
-    return pageTitleMap[key] ?? '概览';
-  });
+  const currentPageTitle = computed(() => pageTitleMap[getMenuKey(route.path)] ?? '概览');
 
   function onMenuClick({ key }: { key: string }) {
     const target = menuRouteMap[key];

@@ -131,7 +131,13 @@ export class AdminService {
 
   public async getMarketConfig(): Promise<{ marketUrl: string; hasToken: boolean }> {
     const storedUrl = (await this.getSetting(MARKET_URL_KEY))?.trim() ?? '';
-    const marketUrl = storedUrl || this.config?.get('MARKET_URL') || 'http://localhost:3100';
+    const envUrl = this.config?.get('MARKET_URL')?.trim() ?? '';
+    const storedLooksLocal = storedUrl.includes('localhost') || storedUrl.includes('127.0.0.1');
+    const marketUrl = storedUrl
+      ? storedLooksLocal && envUrl
+        ? envUrl
+        : storedUrl
+      : envUrl || 'http://localhost:3100';
     const token = (await this.getSetting(MARKET_TOKEN_KEY))?.trim() ?? '';
 
     return {

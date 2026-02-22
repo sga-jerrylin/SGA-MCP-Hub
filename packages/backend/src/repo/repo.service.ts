@@ -1,5 +1,5 @@
 import type { Package, PaginatedList } from '@sga/shared';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type * as Minio from 'minio';
 import { MinioService } from '../storage/minio.service';
 import { MarketService } from '../market/market.service';
@@ -17,13 +17,17 @@ export function invalidateRepoCatalog(): void {
 }
 
 @Injectable()
-export class RepoService {
+export class RepoService implements OnModuleInit {
   private cachedCatalog: { version: number; items: Package[] } | null = null;
 
   public constructor(
     private readonly minio: MinioService,
     private readonly marketService: MarketService
   ) {}
+
+  public async onModuleInit(): Promise<void> {
+    await this.minio.ensureBucket('packages');
+  }
 
   public async listPackages(page = 1, size = 20): Promise<PaginatedList<Package>> {
     const packages = await this.loadCatalog();

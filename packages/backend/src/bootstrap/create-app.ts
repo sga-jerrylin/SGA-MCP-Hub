@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { AuthService } from '../auth/auth.service';
 
 export function createApp(app: INestApplication): INestApplication {
   const appWithOptionalApis = app as INestApplication & {
@@ -15,7 +16,7 @@ export function createApp(app: INestApplication): INestApplication {
     })
   );
   appWithOptionalApis.setGlobalPrefix?.('api');
-  appWithOptionalApis.useGlobalGuards?.(new AuthGuard());
+  appWithOptionalApis.useGlobalGuards?.(new AuthGuard(app.get(AuthService)));
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     credentials: true

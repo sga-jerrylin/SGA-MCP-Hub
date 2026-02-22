@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+﻿import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 
 const routes: RouteRecordRaw[] = [
@@ -13,28 +13,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Dashboard' }
       },
       {
-        path: 'generator',
-        name: 'Generator',
-        component: () => import('@/views/Generator/GeneratorView.vue'),
-        meta: { title: 'Generator' }
+        path: 'repository',
+        name: 'Repository',
+        component: () => import('@/views/Repository/RepoView.vue'),
+        meta: { title: 'Repository' }
       },
       {
-        path: 'runtime/servers',
-        name: 'ServerDirectory',
-        component: () => import('@/views/Runtime/ServerDirectory.vue'),
-        meta: { title: 'Server Directory' }
-      },
-      {
-        path: 'runtime/deploy',
-        name: 'DeployView',
-        component: () => import('@/views/Runtime/DeployView.vue'),
-        meta: { title: 'Deploy' }
-      },
-      {
-        path: 'library',
-        name: 'ToolLibrary',
-        component: () => import('@/views/Library/ToolLibrary.vue'),
-        meta: { title: 'Library' }
+        path: 'connect',
+        name: 'HubConnect',
+        component: () => import('@/views/Connect/HubConnect.vue'),
+        meta: { title: 'Hub Connect' }
       },
       {
         path: 'monitor',
@@ -43,10 +31,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Monitor' }
       },
       {
-        path: 'repository',
-        name: 'Repository',
-        component: () => import('@/views/Repository/RepoView.vue'),
-        meta: { title: 'Repository' }
+        path: 'settings/market',
+        name: 'MarketSettings',
+        component: () => import('@/views/Settings/MarketSettings.vue'),
+        meta: { title: 'Market Settings' }
       },
       {
         path: 'admin/tenants',
@@ -59,24 +47,6 @@ const routes: RouteRecordRaw[] = [
         name: 'KeyManagement',
         component: () => import('@/views/Admin/KeyManagement.vue'),
         meta: { title: 'API Key Management' }
-      },
-      {
-        path: 'settings/ai',
-        name: 'AiSettings',
-        component: () => import('@/views/Settings/AiEngineSettings.vue'),
-        meta: { title: 'AI Settings' }
-      },
-      {
-        path: 'settings/market',
-        name: 'MarketSettings',
-        component: () => import('@/views/Settings/MarketSettings.vue'),
-        meta: { title: 'Market Settings' }
-      },
-      {
-        path: 'connect',
-        name: 'HubConnect',
-        component: () => import('@/views/Connect/HubConnect.vue'),
-        meta: { title: 'Hub 接入' }
       }
     ]
   },

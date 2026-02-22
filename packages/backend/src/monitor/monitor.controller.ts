@@ -1,18 +1,6 @@
-import type { ApiResponse, PaginatedList, SseEvent } from '@sga/shared';
-import { Body, Controller, Get, MessageEvent, Param, Post, Query, Sse } from '@nestjs/common';
-import { concat, from, map, Observable } from 'rxjs';
-import {
-  AgentRunSummary,
-  AuditLog,
-  DashboardSummary,
-  MonitorService,
-  SystemMetricsSnapshot,
-  ToolCallStat
-} from './monitor.service';
-
-interface CreateCliRunRequest {
-  root: string;
-}
+import type { ApiResponse, PaginatedList } from '@sga/shared';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { AuditLog, DashboardSummary, MonitorService, SystemMetricsSnapshot, ToolCallStat } from './monitor.service';
 
 interface RecordToolCallRequest {
   serverId: string;
@@ -47,50 +35,6 @@ export class MonitorController {
       message: 'ok',
       data: this.monitorService.getAuditLogs(parsedPage, parsedPageSize)
     };
-  }
-
-  @Post('cli-runs')
-  public createCliRun(@Body() body: CreateCliRunRequest): ApiResponse<{ runId: string }> {
-    const runId = this.monitorService.createRun(body.root);
-    return {
-      code: 0,
-      message: 'ok',
-      data: { runId }
-    };
-  }
-
-  @Post('cli-runs/:runId/events')
-  public appendCliRunEvent(
-    @Param('runId') runId: string,
-    @Body() event: SseEvent
-  ): ApiResponse<{ ok: boolean }> {
-    this.monitorService.appendEvent(runId, event);
-    return {
-      code: 0,
-      message: 'ok',
-      data: { ok: true }
-    };
-  }
-
-  @Get('cli-runs')
-  public listCliRuns(): ApiResponse<AgentRunSummary[]> {
-    return {
-      code: 0,
-      message: 'ok',
-      data: this.monitorService.getRunSummaries()
-    };
-  }
-
-  @Sse('cli-runs/:runId/events')
-  public streamCliRunEvents(@Param('runId') runId: string): Observable<MessageEvent> {
-    const history = this.monitorService.getEvents(runId);
-    const historyEvents = from(history).pipe(map((event) => ({ type: event.type, data: event })));
-    const liveEvents = this.monitorService
-      .getEventStream(runId)
-      .asObservable()
-      .pipe(map((event) => ({ type: event.type, data: event })));
-
-    return concat(historyEvents, liveEvents);
   }
 
   @Post('tool-calls')

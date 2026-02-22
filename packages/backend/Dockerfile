@@ -1,25 +1,31 @@
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+# Mirror on-disk layout so pnpm-workspace.yaml relative paths resolve
+WORKDIR /workspace
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/shared ./packages/shared
-COPY packages/core ./packages/core
-COPY packages/backend ./packages/backend
+COPY sga-mcp-hub/package.json ./sga-mcp-hub/package.json
+COPY sga-mcp-hub/pnpm-workspace.yaml ./sga-mcp-hub/pnpm-workspace.yaml
+COPY sga-mcp-hub/pnpm-lock.yaml ./sga-mcp-hub/pnpm-lock.yaml
+COPY sga-mcp-hub/tsconfig.base.json ./sga-mcp-hub/tsconfig.base.json
 
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-RUN pnpm --filter @mcp-claw/shared build || true
-RUN pnpm --filter @mcp-claw/backend build
+COPY mcp/packages/shared ./mcp/packages/shared
+COPY mcp/packages/core ./mcp/packages/core
+
+COPY sga-mcp-hub/packages/backend ./sga-mcp-hub/packages/backend
+
+WORKDIR /workspace/sga-mcp-hub
+RUN npm install -g pnpm && pnpm install --no-frozen-lockfile
+RUN pnpm --filter @sga/shared build || true
+RUN pnpm --filter @sga/core build || true
+RUN pnpm --filter @sga/backend build
+RUN pnpm --filter @sga/backend deploy --prod --legacy /deploy
 
 FROM node:20-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=builder /app/packages/backend/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/core/dist ./packages/core/dist
+COPY --from=builder /deploy ./
 
 EXPOSE 8080
 CMD ["node", "dist/main.js"]

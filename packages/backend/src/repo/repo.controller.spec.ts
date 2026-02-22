@@ -44,7 +44,7 @@ describe('RepoController', () => {
       })
     };
 
-    controller = new RepoController(service as unknown as RepoService);
+    controller = new RepoController(service as unknown as RepoService, { get: () => 'http://localhost:3000' } as any);
   });
 
   it('returns paginated package list', async () => {

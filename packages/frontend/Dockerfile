@@ -1,19 +1,24 @@
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/shared ./packages/shared
-COPY packages/frontend ./packages/frontend
+COPY sga-mcp-hub/package.json ./sga-mcp-hub/package.json
+COPY sga-mcp-hub/pnpm-workspace.yaml ./sga-mcp-hub/pnpm-workspace.yaml
+COPY sga-mcp-hub/pnpm-lock.yaml ./sga-mcp-hub/pnpm-lock.yaml
 
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-RUN pnpm --filter @mcp-claw/shared build || true
-RUN pnpm --filter @mcp-claw/frontend build
+COPY mcp/packages/shared ./mcp/packages/shared
+
+COPY sga-mcp-hub/packages/frontend ./sga-mcp-hub/packages/frontend
+
+WORKDIR /workspace/sga-mcp-hub
+RUN npm install -g pnpm && pnpm install --no-frozen-lockfile
+RUN pnpm --filter @sga/shared build || true
+RUN pnpm --filter @sga/frontend exec vite build
 
 FROM nginx:alpine AS runner
 
-COPY --from=builder /app/packages/frontend/dist /usr/share/nginx/html
-COPY packages/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /workspace/sga-mcp-hub/packages/frontend/dist /usr/share/nginx/html
+COPY sga-mcp-hub/packages/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

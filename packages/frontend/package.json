@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
     "@antv/g6": "^5.0.51",
     "@sga/shared": "workspace:*",
     "ant-design-vue": "^4.2.6",

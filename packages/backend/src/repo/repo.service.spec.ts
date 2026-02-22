@@ -49,7 +49,7 @@ describe('RepoService', () => {
 
   it('lists packages from minio catalog with pagination', async () => {
     const minio = buildMinioMock();
-    const service = new RepoService(minio);
+    const service = new RepoService(minio, {} as any);
     const list = await service.listPackages(1, 1);
 
     expect(list.total).toBe(1);
@@ -61,7 +61,7 @@ describe('RepoService', () => {
 
   it('gets package by id from minio sidecar', async () => {
     const minio = buildMinioMock();
-    const service = new RepoService(minio);
+    const service = new RepoService(minio, {} as any);
     const pkg = await service.getPackage('pkg-crm-core');
 
     expect(pkg.name).toBe('CRM Core');
@@ -69,7 +69,7 @@ describe('RepoService', () => {
 
   it('returns install download URL from real package id', async () => {
     const minio = buildMinioMock();
-    const service = new RepoService(minio);
+    const service = new RepoService(minio, {} as any);
 
     const result = await service.installPackage('pkg-crm-core');
 

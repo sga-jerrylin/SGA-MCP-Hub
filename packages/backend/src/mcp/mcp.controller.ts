@@ -1,5 +1,7 @@
-import { Controller, Get, Req, Res } from '@nestjs/common';
+﻿import { Controller, Get, Req, Res } from '@nestjs/common';
+import { AppConfigService } from '../config/config.service';
 import { RuntimeService } from '../runtime/runtime.service';
+import { MonitorService } from '../monitor/monitor.service';
 
 interface SseResponse {
   setHeader(name: string, value: string): void;
@@ -26,15 +28,124 @@ interface JsonRpcResponse {
   error?: { code: number; message: string; data?: unknown };
 }
 
+interface HubConnectClientConfig {
+  claudeCode: { label: 'Claude Code'; command: string };
+  claudeDesktop: {
+    label: 'Claude Desktop';
+    config: Record<string, unknown>;
+    filePath: string;
+  };
+  cursor: { label: 'Cursor'; config: Record<string, unknown>; filePath: string };
+  windsurf: { label: 'Windsurf'; config: Record<string, unknown>; filePath: string };
+  vscode: { label: 'VS Code (Copilot)'; config: Record<string, unknown>; filePath: string };
+  augment: { label: 'Augment Code'; instruction: string };
+  dify: { label: 'Dify'; instruction: string };
+  hiagent: { label: 'HiAgent'; instruction: string };
+  mcpClaw: { label: 'mcp-claw'; command: string };
+  genericSse: { label: 'Generic SSE'; url: string };
+}
+
+interface HubConnectConfig {
+  hubName: string;
+  hubSseUrl: string;
+  toolCount: number;
+  clients: HubConnectClientConfig;
+}
+
 @Controller('mcp')
 export class McpController {
-  public constructor(private readonly runtimeService: RuntimeService) {}
+  public constructor(
+    private readonly runtimeService: RuntimeService,
+    private readonly monitorService: MonitorService,
+    private readonly config: AppConfigService
+  ) {}
+
+  @Get('connect')
+  public async getConnectConfig(): Promise<HubConnectConfig> {
+    const hubName = 'sga-mcp-hub';
+    const hubSseUrl = this.resolveHubSseUrl();
+    const servers = await this.runtimeService.listServers().catch(() => []);
+    const toolCount = servers.reduce(
+      (sum, server) => sum + (typeof server.toolCount === 'number' ? server.toolCount : 0),
+      0
+    );
+
+    const transportConfig = {
+      url: hubSseUrl,
+      transport: 'sse'
+    };
+
+    return {
+      hubName,
+      hubSseUrl,
+      toolCount,
+      clients: {
+        claudeCode: {
+          label: 'Claude Code',
+          command: `claude mcp add ${hubName} --transport sse --url ${hubSseUrl}`
+        },
+        claudeDesktop: {
+          label: 'Claude Desktop',
+          filePath: '~/.claude_desktop_config.json',
+          config: {
+            mcpServers: {
+              [hubName]: transportConfig
+            }
+          }
+        },
+        cursor: {
+          label: 'Cursor',
+          filePath: '.cursor/mcp.json',
+          config: {
+            mcpServers: {
+              [hubName]: transportConfig
+            }
+          }
+        },
+        windsurf: {
+          label: 'Windsurf',
+          filePath: '~/.codeium/windsurf/mcp_config.json',
+          config: {
+            mcpServers: {
+              [hubName]: transportConfig
+            }
+          }
+        },
+        vscode: {
+          label: 'VS Code (Copilot)',
+          filePath: '.vscode/mcp.json',
+          config: {
+            mcpServers: {
+              [hubName]: transportConfig
+            }
+          }
+        },
+        augment: {
+          label: 'Augment Code',
+          instruction: `Open Augment settings and add an MCP SSE server URL: ${hubSseUrl}`
+        },
+        dify: {
+          label: 'Dify',
+          instruction: `Use MCP connector in Dify and set endpoint to ${hubSseUrl}`
+        },
+        hiagent: {
+          label: 'HiAgent',
+          instruction: `Configure HiAgent MCP integration with SSE URL ${hubSseUrl}`
+        },
+        mcpClaw: {
+          label: 'mcp-claw',
+          command: `mcp-claw hub connect ${hubSseUrl}`
+        },
+        genericSse: {
+          label: 'Generic SSE',
+          url: hubSseUrl
+        }
+      }
+    };
+  }
 
   @Get()
-  public async handleMcp(
-    @Req() req: IncomingRequest,
-    @Res() res: SseResponse,
-  ): Promise<void> {
+  public async handleMcp(@Req() req: IncomingRequest, @Res() res: SseResponse): Promise<void> {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -43,7 +154,7 @@ export class McpController {
 
     this.sendSseEvent(res, 'endpoint', { url: '/api/mcp' });
 
-    const rpcParam = req.query['rpc'];
+    const rpcParam = req.query.rpc;
 
     if (rpcParam) {
       try {
@@ -54,7 +165,7 @@ export class McpController {
         this.sendSseEvent(res, 'message', {
           jsonrpc: '2.0',
           id: null,
-          error: { code: -32700, message: 'Parse error' },
+          error: { code: -32700, message: 'Parse error' }
         });
       }
     }
@@ -75,7 +186,7 @@ export class McpController {
           this.sendSseEvent(res, 'message', {
             jsonrpc: '2.0',
             id: null,
-            error: { code: -32700, message: 'Parse error' },
+            error: { code: -32700, message: 'Parse error' }
           });
         }
       }
@@ -101,15 +212,18 @@ export class McpController {
           result: {
             protocolVersion: '2024-11-05',
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: 'sga-mcp-hub', version: '0.1.0' },
-          },
+            serverInfo: { name: 'sga-mcp-hub', version: '0.1.0' }
+          }
         };
 
       case 'tools/list':
         return this.handleToolsList(id);
 
       case 'tools/call':
-        return this.handleToolsCall(id, params as { name?: string; arguments?: Record<string, unknown> } | undefined);
+        return this.handleToolsCall(
+          id,
+          params as { name?: string; arguments?: Record<string, unknown> } | undefined
+        );
 
       case 'ping':
         return { jsonrpc: '2.0', id, result: {} };
@@ -118,7 +232,7 @@ export class McpController {
         return {
           jsonrpc: '2.0',
           id,
-          error: { code: -32601, message: `Method not found: ${method}` },
+          error: { code: -32601, message: `Method not found: ${method}` }
         };
     }
   }
@@ -134,7 +248,7 @@ export class McpController {
           allTools.push({
             name: tool.name,
             description: tool.description,
-            inputSchema: tool.inputSchema ?? { type: 'object', properties: {} },
+            inputSchema: tool.inputSchema ?? { type: 'object', properties: {} }
           });
         }
       } catch {
@@ -145,20 +259,20 @@ export class McpController {
     return {
       jsonrpc: '2.0',
       id,
-      result: { tools: allTools },
+      result: { tools: allTools }
     };
   }
 
   private async handleToolsCall(
     id: number | string,
-    params?: { name?: string; arguments?: Record<string, unknown> },
+    params?: { name?: string; arguments?: Record<string, unknown> }
   ): Promise<JsonRpcResponse> {
     const toolName = params?.name;
     if (!toolName) {
       return {
         jsonrpc: '2.0',
         id,
-        error: { code: -32602, message: 'Missing tool name' },
+        error: { code: -32602, message: 'Missing tool name' }
       };
     }
 
@@ -167,7 +281,7 @@ export class McpController {
       return {
         jsonrpc: '2.0',
         id,
-        error: { code: -32602, message: `Invalid tool name format: ${toolName}` },
+        error: { code: -32602, message: `Invalid tool name format: ${toolName}` }
       };
     }
 
@@ -180,9 +294,11 @@ export class McpController {
         return {
           jsonrpc: '2.0',
           id,
-          error: { code: -32602, message: `Tool not found: ${toolName}` },
+          error: { code: -32602, message: `Tool not found: ${toolName}` }
         };
       }
+
+      this.monitorService.recordToolCall(serverId, detail.name, toolName, 0);
 
       return {
         jsonrpc: '2.0',
@@ -191,18 +307,31 @@ export class McpController {
           content: [
             {
               type: 'text',
-              text: `Tool ${toolName} executed successfully (stub)`,
-            },
-          ],
-        },
+              text: `Tool ${toolName} executed successfully (stub)`
+            }
+          ]
+        }
       };
     } catch {
       return {
         jsonrpc: '2.0',
         id,
-        error: { code: -32603, message: `Server ${serverId} not available` },
+        error: { code: -32603, message: `Server ${serverId} not available` }
       };
     }
+  }
+
+  private resolveHubSseUrl(): string {
+    const configured = this.config.get('HUB_PUBLIC_URL')?.trim();
+    if (!configured) {
+      return 'http://localhost:3000/api/mcp';
+    }
+
+    if (configured.endsWith('/api/mcp')) {
+      return configured;
+    }
+
+    return `${configured.replace(/\/+$/, '')}/api/mcp`;
   }
 
   private sendSseEvent(res: SseResponse, event: string, data: unknown): void {

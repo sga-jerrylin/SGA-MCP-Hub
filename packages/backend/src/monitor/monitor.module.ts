@@ -6,6 +6,7 @@ import { RuntimeModule } from '../runtime/runtime.module';
 @Module({
   imports: [RuntimeModule],
   controllers: [MonitorController],
-  providers: [MonitorService]
+  providers: [MonitorService],
+  exports: [MonitorService]
 })
 export class MonitorModule {}

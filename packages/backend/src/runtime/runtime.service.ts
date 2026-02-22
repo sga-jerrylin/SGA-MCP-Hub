@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   McpServer,
   McpServerDetail,
   McpTool,
@@ -14,6 +14,10 @@ interface ManifestSidecar {
   packageId: string;
   manifest: Package;
   pushedAt: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 @Injectable()
@@ -142,6 +146,26 @@ export class RuntimeService {
   }
 
   private toTools(pkg: Package): McpTool[] {
+    const rawTools = (pkg as Package & { tools?: unknown[] }).tools;
+    const manifestTools = Array.isArray(rawTools) ? rawTools : [];
+
+    const normalizedTools = manifestTools
+      .filter(
+        (
+          tool
+        ): tool is { name: string; description?: string; inputSchema?: Record<string, unknown> } =>
+          isRecord(tool) && typeof tool.name === 'string' && tool.name.trim().length > 0
+      )
+      .map((tool) => ({
+        name: tool.name.startsWith(`${pkg.id}.`) ? tool.name : `${pkg.id}.${tool.name}`,
+        ...(typeof tool.description === 'string' ? { description: tool.description } : {}),
+        ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {})
+      }));
+
+    if (normalizedTools.length > 0) {
+      return normalizedTools;
+    }
+
     const count = Math.max(0, Math.min(pkg.toolCount, 20));
     const tools: McpTool[] = [];
 

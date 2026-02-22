@@ -41,6 +41,10 @@
           <template #icon><AppstoreOutlined /></template>
           <span>配置仓库</span>
         </a-menu-item>
+        <a-menu-item key="connect">
+          <template #icon><ApiOutlined /></template>
+          <span>Hub 接入</span>
+        </a-menu-item>
         <a-menu-item key="monitor">
           <template #icon><LineChartOutlined /></template>
           <span>运行监控</span>
@@ -51,6 +55,7 @@
           <template #title>系统管理</template>
           <a-menu-item key="tenants">租户管理</a-menu-item>
           <a-menu-item key="ai-settings">AI 引擎</a-menu-item>
+          <a-menu-item key="market-settings">Market 连接</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>
@@ -90,7 +95,8 @@
     SettingOutlined,
     ToolOutlined,
     DeploymentUnitOutlined,
-    LineChartOutlined
+    LineChartOutlined,
+    ApiOutlined
   } from '@ant-design/icons-vue';
   import { useAppStore } from '@/store/app';
 
@@ -107,9 +113,11 @@
     if (path.startsWith('/runtime/servers')) return 'servers';
     if (path.startsWith('/runtime/deploy')) return 'deploy';
     if (path.startsWith('/repository')) return 'repository';
+    if (path.startsWith('/connect')) return 'connect';
     if (path.startsWith('/monitor')) return 'monitor';
     if (path.startsWith('/admin/tenants')) return 'tenants';
     if (path.startsWith('/settings/ai')) return 'ai-settings';
+    if (path.startsWith('/settings/market')) return 'market-settings';
     return 'dashboard';
   };
 
@@ -128,9 +136,11 @@
     servers: '/runtime/servers',
     deploy: '/runtime/deploy',
     repository: '/repository',
+    connect: '/connect',
     monitor: '/monitor',
     tenants: '/admin/tenants',
-    'ai-settings': '/settings/ai'
+    'ai-settings': '/settings/ai',
+    'market-settings': '/settings/market'
   };
 
   const pageTitleMap: Record<string, string> = {
@@ -140,9 +150,11 @@
     servers: 'Server 目录',
     deploy: '部署发布',
     repository: '配置仓库',
+    connect: 'Hub 接入',
     monitor: '运行监控',
     tenants: '租户管理',
-    'ai-settings': 'AI 引擎'
+    'ai-settings': 'AI 引擎',
+    'market-settings': 'Market 连接'
   };
 
   const currentPageTitle = computed(() => {

@@ -36,6 +36,7 @@
               </div>
               <span class="hub-dot" :class="sys.online ? 'hub-dot--green' : 'hub-dot--gray'" />
             </div>
+            <div v-if="upstreamSystems.length === 0" class="hub-empty">暂无接入</div>
           </div>
         </div>
 
@@ -83,6 +84,7 @@
               </div>
               <span class="hub-item-time">{{ agent.lastSeen }}</span>
             </div>
+            <div v-if="downstreamAgents.length === 0" class="hub-empty">暂无连接</div>
           </div>
         </div>
       </div>
@@ -96,7 +98,7 @@
       </div>
       <div class="metric-divider" />
       <div class="metric-item">
-        <div class="metric-value metric-value--green">99.9%</div>
+        <div class="metric-value metric-value--green">{{ successRate }}</div>
         <div class="metric-label">今日成功率</div>
       </div>
       <div class="metric-divider" />
@@ -131,7 +133,7 @@
       </a-col>
 
       <!-- Top 5 热门工具 -->
-      <a-col :xs="24" :lg="7">
+      <a-col :xs="24" :lg="12">
         <a-card title="Top 5 热门工具" :bordered="false" :loading="loading">
           <div class="top-tools">
             <div v-for="(tool, index) in topFiveTools" :key="tool.toolName" class="top-tool-row">
@@ -143,28 +145,6 @@
               <span class="tool-count">{{ tool.callCount }}</span>
             </div>
             <a-empty v-if="topFiveTools.length === 0" description="暂无数据" />
-          </div>
-        </a-card>
-      </a-col>
-
-      <!-- 错误分布 -->
-      <a-col :xs="24" :lg="5">
-        <a-card title="错误分布 (Last 1h)" :bordered="false">
-          <div class="error-dist">
-            <div class="donut-wrap">
-              <div class="donut" />
-              <div class="donut-hole">
-                <span class="donut-center-num">{{ totalErrors }}</span>
-                <span class="donut-center-label">次错误</span>
-              </div>
-            </div>
-            <div class="error-legend">
-              <div v-for="item in errorSegments" :key="item.label" class="legend-item">
-                <span class="legend-dot" :style="{ background: item.color }" />
-                <span class="legend-label">{{ item.label }}</span>
-                <span class="legend-pct">{{ item.pct }}%</span>
-              </div>
-            </div>
           </div>
         </a-card>
       </a-col>
@@ -181,34 +161,34 @@
   // ── 状态 ───────────────────────────────────────
   const loading = ref(false);
   const summary = ref<DashboardSummary | null>(null);
-  const appVersion = '1.0.2';
+  const appVersion = ref('--');
 
-  // ── Mock：上游系统 ───────────────────────────────
-  const upstreamSystems = [
-    { id: 1, name: '金蝶 Cloud', env: 'PROD', auth: 'OAuth2', icon: '🏭', online: true },
-    { id: 2, name: '用友 U8', env: 'PROD', auth: 'ApiKey', icon: '📦', online: true },
-    { id: 3, name: 'Oracle EBS', env: 'PROD', auth: 'JWT', icon: '🔶', online: true },
-    { id: 4, name: 'Shopify', env: 'SBX', auth: 'OAuth2', icon: '🛍️', online: false }
-  ];
+  // 平均延迟：从后端 DashboardSummary 获取
+  const avgLatencyMs = computed(() => summary.value?.avgLatencyMs ?? 0);
 
-  // ── Mock：下游 Agent ─────────────────────────────
-  const downstreamAgents = [
-    { id: 1, name: 'OpenClaw', sub: 'HR Bot', icon: '🤖', lastSeen: '刚刚' },
-    { id: 2, name: 'Dify App', sub: 'Finance Asst', icon: '💬', lastSeen: '1m前' },
-    { id: 3, name: 'DingTalk', sub: 'Group Chat', icon: '🔔', lastSeen: '3m前' },
-    { id: 4, name: 'Test Agent', sub: 'Sandbox', icon: '🧪', lastSeen: '12m前' }
-  ];
+  // 成功率：从后端 DashboardSummary 获取
+  const successRate = computed(() => {
+    const rate = summary.value?.successRate;
+    return rate != null ? `${rate.toFixed(1)}%` : '--';
+  });
 
-  // ── Mock：错误分布 ────────────────────────────────
-  const errorSegments = [
-    { label: 'Validation', pct: 80, color: '#2563eb' },
-    { label: 'Auth', pct: 15, color: '#f59e0b' },
-    { label: 'Timeout', pct: 5, color: '#ef4444' }
-  ];
-  const totalErrors = 24;
+  // 上游系统 / 下游 Agent — 待用户在设置页注册后从后端获取
+  const upstreamSystems: {
+    id: number;
+    name: string;
+    env: string;
+    auth: string;
+    icon: string;
+    online: boolean;
+  }[] = [];
 
-  // ── Mock：平均延迟（从 topTools durationMs 估算）───
-  const avgLatencyMs = 142;
+  const downstreamAgents: {
+    id: number;
+    name: string;
+    sub: string;
+    icon: string;
+    lastSeen: string;
+  }[] = [];
 
   // ── 计算属性 ────────────────────────────────────
   const uptimeLabel = computed(() => {
@@ -246,8 +226,20 @@
     }
   };
 
+  const fetchSystemInfo = async (): Promise<void> => {
+    try {
+      const res = (await http.get<ApiResponse<{ appVersion: string; uptimeSeconds: number }>>(
+        '/admin/system-info'
+      )) as unknown as ApiResponse<{ appVersion: string; uptimeSeconds: number }>;
+      appVersion.value = res.data.appVersion;
+    } catch {
+      // fallback to '--'
+    }
+  };
+
   onMounted(() => {
     void fetchDashboard();
+    void fetchSystemInfo();
   });
 </script>
 
@@ -435,6 +427,14 @@
   }
 
   // ── 连接器 ───────────────────────────────────────
+  .hub-empty {
+    font-size: 12px;
+    color: @text-secondary;
+    text-align: center;
+    padding: 12px 0;
+    font-style: italic;
+  }
+
   .hub-connector {
     display: flex;
     align-items: center;
@@ -724,78 +724,4 @@
     flex-shrink: 0;
   }
 
-  // ── 错误分布 Donut ────────────────────────────────
-  .error-dist {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .donut-wrap {
-    position: relative;
-    width: 120px;
-    height: 120px;
-  }
-
-  .donut {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: conic-gradient(@blue 0deg 288deg, @amber 288deg 342deg, @red 342deg 360deg);
-  }
-
-  .donut-hole {
-    position: absolute;
-    inset: 26%;
-    background: #fff;
-    border-radius: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .donut-center-num {
-    font-size: 16px;
-    font-weight: 800;
-    color: @text-primary;
-    line-height: 1;
-  }
-
-  .donut-center-label {
-    font-size: 10px;
-    color: @text-secondary;
-  }
-
-  .error-legend {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-  }
-
-  .legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .legend-label {
-    flex: 1;
-    color: @text-secondary;
-  }
-
-  .legend-pct {
-    font-weight: 600;
-    color: @text-primary;
-  }
 </style>

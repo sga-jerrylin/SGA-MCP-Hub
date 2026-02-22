@@ -65,6 +65,18 @@ const routes: RouteRecordRaw[] = [
         name: 'AiSettings',
         component: () => import('@/views/Settings/AiEngineSettings.vue'),
         meta: { title: 'AI Settings' }
+      },
+      {
+        path: 'settings/market',
+        name: 'MarketSettings',
+        component: () => import('@/views/Settings/MarketSettings.vue'),
+        meta: { title: 'Market Settings' }
+      },
+      {
+        path: 'connect',
+        name: 'HubConnect',
+        component: () => import('@/views/Connect/HubConnect.vue'),
+        meta: { title: 'Hub 接入' }
       }
     ]
   },

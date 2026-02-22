@@ -1,6 +1,7 @@
-import type { Package } from '@sga/shared';
-import { Injectable, Logger } from '@nestjs/common';
+﻿import type { Package } from '@sga/shared';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AppConfigService } from '../config/config.service';
+import { AdminService } from '../admin/admin.service';
 
 export interface MarketPackageResult {
   items: Package[];
@@ -11,18 +12,22 @@ export interface MarketPackageResult {
 export class MarketService {
   private readonly logger = new Logger(MarketService.name);
 
-  public constructor(private readonly config: AppConfigService) {}
+  public constructor(
+    private readonly config: AppConfigService,
+    @Optional() private readonly adminService?: AdminService
+  ) {}
 
   public async searchPackages(q?: string, category?: string): Promise<MarketPackageResult> {
-    const marketUrl = this.config.get('MARKET_URL');
-    const url = new URL('/api/packages', marketUrl);
+    const marketUrl = await this.getMarketUrl();
+    const headers = await this.getMarketHeaders();
+    const url = new URL('/packages', marketUrl);
     if (q) url.searchParams.set('q', q);
     if (category) url.searchParams.set('category', category);
 
     try {
       const response = await fetch(url.toString(), {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(10_000),
+        headers,
+        signal: AbortSignal.timeout(10_000)
       });
 
       if (!response.ok) {
@@ -39,13 +44,14 @@ export class MarketService {
   }
 
   public async fetchPackageById(packageId: string): Promise<Package | null> {
-    const marketUrl = this.config.get('MARKET_URL');
-    const url = new URL(`/api/packages/${encodeURIComponent(packageId)}`, marketUrl);
+    const marketUrl = await this.getMarketUrl();
+    const headers = await this.getMarketHeaders();
+    const url = new URL(`/packages/${encodeURIComponent(packageId)}`, marketUrl);
 
     try {
       const response = await fetch(url.toString(), {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(10_000),
+        headers,
+        signal: AbortSignal.timeout(10_000)
       });
 
       if (!response.ok) {
@@ -59,5 +65,54 @@ export class MarketService {
       this.logger.warn(`Failed to fetch package ${packageId} from Market: ${error}`);
       return null;
     }
+  }
+
+  public async downloadPackageTarball(packageId: string): Promise<Buffer | null> {
+    const marketUrl = await this.getMarketUrl();
+    const headers = await this.getMarketHeaders();
+    const url = new URL(`/packages/${encodeURIComponent(packageId)}/download`, marketUrl);
+
+    try {
+      const response = await fetch(url.toString(), {
+        headers,
+        signal: AbortSignal.timeout(30_000)
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`Market download returned ${response.status} for ${packageId}`);
+        return null;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      this.logger.warn(`Failed to download package ${packageId} from Market: ${error}`);
+      return null;
+    }
+  }
+
+  private async getMarketUrl(): Promise<string> {
+    if (!this.adminService) {
+      return this.config.get('MARKET_URL');
+    }
+
+    const savedUrl = (await this.adminService.getSetting('market.url'))?.trim();
+    if (savedUrl) {
+      return savedUrl;
+    }
+    return this.config.get('MARKET_URL');
+  }
+
+  private async getMarketHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (!this.adminService) {
+      return headers;
+    }
+
+    const token = (await this.adminService.getSetting('market.token'))?.trim();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
   }
 }

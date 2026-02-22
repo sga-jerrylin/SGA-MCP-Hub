@@ -1,4 +1,4 @@
-import type { PaginatedList, SseEvent } from '@sga/shared';
+﻿import type { PaginatedList, SseEvent } from '@sga/shared';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import { RuntimeService } from '../runtime/runtime.service';
@@ -59,6 +59,8 @@ export interface HourlyCount {
 export interface DashboardSummary {
   topTools: ToolCallStat[];
   totalCallsLast24h: number;
+  successRate: number;
+  avgLatencyMs: number;
   hourlyTrend: HourlyCount[];
   activeServers: number;
   totalPackages: number;
@@ -70,26 +72,10 @@ export interface DashboardSummary {
 export class MonitorService {
   public constructor(private readonly runtimeService: RuntimeService) {}
 
-  private readonly auditLogs: AuditLog[] = [
-    {
-      id: 'audit-1',
-      action: 'sync.push',
-      userId: 'u_admin',
-      resource: 'pkg-crm-core',
-      createdAt: '2026-02-17T08:00:00.000Z'
-    },
-    {
-      id: 'audit-2',
-      action: 'deploy.execute',
-      userId: 'u_admin',
-      resource: 'srv-1',
-      createdAt: '2026-02-17T08:05:00.000Z'
-    }
-  ];
-
+  private readonly auditLogs: AuditLog[] = [];
   private readonly agentRuns = new Map<string, AgentRun>();
   private readonly eventStreams = new Map<string, Subject<SseEvent>>();
-  private readonly toolCalls: ToolCallRecord[] = this.createMockToolCalls();
+  private readonly toolCalls: ToolCallRecord[] = [];
 
   public async getMetrics(): Promise<SystemMetricsSnapshot> {
     const memoryUsage = process.memoryUsage();
@@ -116,6 +102,16 @@ export class MonitorService {
       page: safePage,
       pageSize: safePageSize
     };
+  }
+
+  public recordAuditLog(action: string, userId: string, resource: string): void {
+    this.auditLogs.push({
+      id: `audit-${Date.now()}`,
+      action,
+      userId,
+      resource,
+      createdAt: new Date().toISOString()
+    });
   }
 
   public createRun(root: string): string {
@@ -278,6 +274,19 @@ export class MonitorService {
       });
     }
 
+    const callsWithDuration = callsLast24h.filter((call) => typeof call.durationMs === 'number');
+    const successRate =
+      callsLast24h.length === 0
+        ? 0
+        : Math.round((callsWithDuration.length / callsLast24h.length) * 10000) / 100;
+    const avgLatencyMs =
+      callsWithDuration.length === 0
+        ? 0
+        : Math.round(
+            callsWithDuration.reduce((sum, call) => sum + (call.durationMs ?? 0), 0) /
+              callsWithDuration.length
+          );
+
     const activeServersByCalls = new Set(callsLast24h.map((call) => call.serverId)).size;
     const metrics = await this.getMetrics();
     const activeServers = Math.min(activeServersByCalls, metrics.totalServers);
@@ -285,6 +294,8 @@ export class MonitorService {
     return {
       topTools: this.getToolStats(),
       totalCallsLast24h: callsLast24h.length,
+      successRate,
+      avgLatencyMs,
       hourlyTrend,
       activeServers,
       totalPackages: metrics.totalPackages,
@@ -295,40 +306,5 @@ export class MonitorService {
 
   private toHourKey(input: Date): string {
     return `${input.toISOString().slice(0, 13)}:00`;
-  }
-
-  private createMockToolCalls(): ToolCallRecord[] {
-    const now = Date.now();
-    const hourMs = 60 * 60 * 1000;
-    const build = (
-      hoursAgo: number,
-      serverId: string,
-      serverName: string,
-      toolName: string,
-      durationMs?: number
-    ): ToolCallRecord => ({
-      serverId,
-      serverName,
-      toolName,
-      calledAt: new Date(now - hoursAgo * hourMs),
-      durationMs
-    });
-
-    return [
-      build(0.3, 'srv-1', 'ERP Gateway', 'list_orders', 112),
-      build(0.6, 'srv-1', 'ERP Gateway', 'list_orders', 125),
-      build(1.4, 'srv-2', 'Finance Gateway', 'create_invoice', 242),
-      build(2.1, 'srv-3', 'CRM Gateway', 'search_customers', 90),
-      build(3.0, 'srv-3', 'CRM Gateway', 'search_customers', 101),
-      build(4.2, 'srv-4', 'RAG Gateway', 'query_documents', 188),
-      build(5.1, 'srv-5', 'WeCom Gateway', 'send_message', 76),
-      build(6.4, 'srv-1', 'ERP Gateway', 'list_orders', 109),
-      build(8.0, 'srv-2', 'Finance Gateway', 'create_invoice', 235),
-      build(9.7, 'srv-6', 'Workflow Gateway', 'run_workflow', 311),
-      build(11.3, 'srv-7', 'HR Gateway', 'list_employees', 127),
-      build(14.5, 'srv-4', 'RAG Gateway', 'query_documents', 203),
-      build(18.1, 'srv-5', 'WeCom Gateway', 'send_message', 81),
-      build(21.6, 'srv-8', 'Mail Gateway', 'send_email', 156)
-    ];
   }
 }

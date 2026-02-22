@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   ApiKey,
   ApiResponse,
   CreateApiKeyRequest,
@@ -6,8 +6,13 @@ import type {
   CreateTenantRequest,
   Tenant
 } from '@sga/shared';
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { AdminService } from './admin.service';
+
+interface UpdateMarketConfigRequest {
+  marketUrl: string;
+  marketToken?: string;
+}
 
 @Controller('admin')
 export class AdminController {
@@ -62,6 +67,47 @@ export class AdminController {
       code: 0,
       message: 'ok',
       data: { revoked: true }
+    };
+  }
+
+  @Get('system-info')
+  public getSystemInfo(): ApiResponse<{ appVersion: string; uptimeSeconds: number }> {
+    return {
+      code: 0,
+      message: 'ok',
+      data: this.adminService.getSystemInfo()
+    };
+  }
+
+  @Get('settings/market')
+  public async getMarketConfig(): Promise<ApiResponse<{ marketUrl: string; hasToken: boolean }>> {
+    return {
+      code: 0,
+      message: 'ok',
+      data: await this.adminService.getMarketConfig()
+    };
+  }
+
+  @Put('settings/market')
+  public async setMarketConfig(
+    @Body() req: UpdateMarketConfigRequest
+  ): Promise<ApiResponse<{ saved: boolean }>> {
+    await this.adminService.setMarketConfig(req.marketUrl, req.marketToken);
+    return {
+      code: 0,
+      message: 'ok',
+      data: { saved: true }
+    };
+  }
+
+  @Post('settings/market/test')
+  public async testMarketConnection(): Promise<
+    ApiResponse<{ ok: boolean; latencyMs: number; packageCount?: number }>
+  > {
+    return {
+      code: 0,
+      message: 'ok',
+      data: await this.adminService.testMarketConnection()
     };
   }
 }

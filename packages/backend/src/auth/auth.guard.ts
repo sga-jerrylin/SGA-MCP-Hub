@@ -60,6 +60,11 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
+    // MCP SSE transport: JSON-RPC messages from clients
+    if (path === '/api/mcp' && method === 'POST') {
+      return true;
+    }
+
     return this.pathWhitelist.has(path);
   }
 

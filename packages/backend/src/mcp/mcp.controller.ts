@@ -1,5 +1,6 @@
 ﻿import type { ApiResponse } from '@sga/shared';
-import { Controller, Get, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Req, Res } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { AppConfigService } from '../config/config.service';
 import { RuntimeService } from '../runtime/runtime.service';
 import { MonitorService } from '../monitor/monitor.service';
@@ -8,6 +9,8 @@ interface SseResponse {
   setHeader(name: string, value: string): void;
   flushHeaders(): void;
   write(data: string): void;
+  status(code: number): SseResponse;
+  json(body: unknown): void;
 }
 
 interface IncomingRequest {
@@ -55,6 +58,8 @@ interface HubConnectConfig {
 
 @Controller('mcp')
 export class McpController {
+  private readonly sessions = new Map<string, SseResponse>();
+
   public constructor(
     private readonly runtimeService: RuntimeService,
     private readonly monitorService: MonitorService,
@@ -150,52 +155,18 @@ export class McpController {
   }
 
   @Get()
-  public async handleMcp(@Req() req: IncomingRequest, @Res() res: SseResponse): Promise<void> {
+  public handleSse(@Req() req: IncomingRequest, @Res() res: SseResponse): void {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    this.sendSseEvent(res, 'endpoint', { url: '/api/mcp' });
+    const sessionId = randomUUID();
+    this.sessions.set(sessionId, res);
 
-    const rpcParam = req.query.rpc;
-
-    if (rpcParam) {
-      try {
-        const rpcRequest = JSON.parse(rpcParam) as JsonRpcRequest;
-        const rpcResponse = await this.handleJsonRpc(rpcRequest);
-        this.sendSseEvent(res, 'message', rpcResponse);
-      } catch {
-        this.sendSseEvent(res, 'message', {
-          jsonrpc: '2.0',
-          id: null,
-          error: { code: -32700, message: 'Parse error' }
-        });
-      }
-    }
-
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-
-    req.on('end', () => {
-      if (body.trim()) {
-        try {
-          const rpcRequest = JSON.parse(body) as JsonRpcRequest;
-          void this.handleJsonRpc(rpcRequest).then((rpcResponse) => {
-            this.sendSseEvent(res, 'message', rpcResponse);
-          });
-        } catch {
-          this.sendSseEvent(res, 'message', {
-            jsonrpc: '2.0',
-            id: null,
-            error: { code: -32700, message: 'Parse error' }
-          });
-        }
-      }
-    });
+    // MCP SSE protocol: endpoint event data is a plain URL string
+    res.write(`event: endpoint\ndata: /api/mcp?sessionId=${sessionId}\n\n`);
 
     const heartbeat = setInterval(() => {
       res.write(': heartbeat\n\n');
@@ -203,7 +174,25 @@ export class McpController {
 
     req.on('close', () => {
       clearInterval(heartbeat as unknown as number);
+      this.sessions.delete(sessionId);
     });
+  }
+
+  @Post()
+  public async handleMcpPost(
+    @Query('sessionId') sessionId: string,
+    @Body() body: JsonRpcRequest,
+    @Res() res: SseResponse
+  ): Promise<void> {
+    const sseRes = this.sessions.get(sessionId);
+    if (!sseRes) {
+      res.status(400).json({ error: 'Invalid or expired sessionId' });
+      return;
+    }
+
+    const rpcResponse = await this.handleJsonRpc(body);
+    this.sendSseEvent(sseRes, 'message', rpcResponse);
+    res.status(202).json({ ok: true });
   }
 
   private async handleJsonRpc(request: JsonRpcRequest): Promise<JsonRpcResponse> {

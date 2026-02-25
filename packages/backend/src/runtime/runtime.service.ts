@@ -153,13 +153,16 @@ export class RuntimeService {
   }
 
   private toServer(pkg: Package, pushedAt: string): McpServer {
+    const rawToolCount = (pkg as Package & { toolsCount?: unknown }).toolsCount ?? pkg.toolCount ?? 0;
+    const toolCount = Number.isFinite(Number(rawToolCount)) ? Number(rawToolCount) : 0;
+
     return {
       id: pkg.id,
       name: pkg.name,
       shardIndex: 0,
       status: 'pending',
-      toolCount: pkg.toolCount,
-      tokenUsage: Math.min(pkg.toolCount * 120, 8000),
+      toolCount,
+      tokenUsage: Math.min(toolCount * 120, 8000),
       tokenBudget: 8000,
       endpoint: '/api/mcp',
       port: 0,
@@ -170,8 +173,23 @@ export class RuntimeService {
   private toTools(pkg: Package): McpTool[] {
     const rawTools = (pkg as Package & { tools?: unknown[] }).tools;
     const manifestTools = Array.isArray(rawTools) ? rawTools : [];
+    const rawToolsSummary = (pkg as Package & { toolsSummary?: unknown }).toolsSummary;
+    let summaryTools: unknown[] = [];
+    if (Array.isArray(rawToolsSummary)) {
+      summaryTools = rawToolsSummary;
+    } else if (typeof rawToolsSummary === 'string' && rawToolsSummary.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(rawToolsSummary) as unknown;
+        if (Array.isArray(parsed)) {
+          summaryTools = parsed;
+        }
+      } catch {
+        summaryTools = [];
+      }
+    }
+    const sourceTools = manifestTools.length > 0 ? manifestTools : summaryTools;
 
-    const normalizedTools = manifestTools
+    const normalizedTools = sourceTools
       .filter(
         (
           tool
@@ -181,14 +199,18 @@ export class RuntimeService {
       .map((tool) => ({
         name: tool.name.startsWith(`${pkg.id}.`) ? tool.name : `${pkg.id}.${tool.name}`,
         ...(typeof tool.description === 'string' ? { description: tool.description } : {}),
-        ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {})
+        inputSchema: isRecord(tool.inputSchema)
+          ? tool.inputSchema
+          : { type: 'object', properties: {} }
       }));
 
     if (normalizedTools.length > 0) {
       return normalizedTools;
     }
 
-    const count = Math.max(0, Math.min(pkg.toolCount, 20));
+    const rawCount = (pkg as Package & { toolsCount?: unknown }).toolsCount ?? pkg.toolCount ?? 0;
+    const countNumber = Number.isFinite(Number(rawCount)) ? Number(rawCount) : 0;
+    const count = Math.max(0, Math.min(countNumber, 20));
     const tools: McpTool[] = [];
 
     for (let index = 0; index < count; index += 1) {

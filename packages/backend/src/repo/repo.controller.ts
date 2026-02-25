@@ -106,7 +106,7 @@ export class RepoController {
       ? configured.endsWith('/api/mcp')
         ? configured
         : `${configured.replace(/\/+$/, '')}/api/mcp`
-      : 'http://localhost:3000/api/mcp';
+      : 'http://localhost:8080/api/mcp';
 
     return {
       code: 0,
@@ -116,7 +116,7 @@ export class RepoController {
         packageName: pkg.name,
         hubSseUrl,
         configs: {
-          claudeCode: `claude mcp add ${pkg.name} --transport sse --url ${hubSseUrl}`,
+          claudeCode: `claude mcp add ${pkg.name} --transport sse ${hubSseUrl}`,
           cursor: {
             mcpServers: {
               [pkg.name]: {

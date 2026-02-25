@@ -51,36 +51,37 @@
                     />
                     <span v-else class="icon">{{ item.name.charAt(0).toUpperCase() }}</span>
                   </div>
+                  <a-popconfirm
+                    :title="`确认删除 ${item.name}？删除后需重新安装`"
+                    ok-text="删除"
+                    cancel-text="取消"
+                    @confirm="() => handleDeletePackage(item)"
+                  >
+                    <a-button class="card-delete-btn" type="text" danger size="small" shape="circle">
+                      <template #icon><DeleteOutlined /></template>
+                    </a-button>
+                  </a-popconfirm>
                 </template>
 
                 <a-card-meta :title="item.name">
                   <template #description>
                     <div class="desc" :title="item.description || ''">{{ item.description || '-' }}</div>
                     <div class="tags">
-                      <a-tag size="small">{{ item.category }}</a-tag>
                       <span class="version">v{{ item.version }}</span>
-                    </div>
-                    <div class="credential-badge">
-                      <a-badge
-                        :status="credentialConfiguredMap[item.id] ? 'success' : 'warning'"
-                        :text="credentialConfiguredMap[item.id] ? '就绪' : '凭证待配置'"
-                      />
+                      <div class="right-badges">
+                        <a-tag size="small">{{ item.category }}</a-tag>
+                        <a-badge
+                          :status="credentialConfiguredMap[item.id] ? 'success' : 'warning'"
+                          :text="credentialConfiguredMap[item.id] ? '就绪' : '待配置'"
+                        />
+                      </div>
                     </div>
                   </template>
                 </a-card-meta>
 
                 <template #actions>
-                  <div class="downloads"><DownloadOutlined /> {{ item.downloads }}</div>
-                  <div class="action-buttons">
-                    <a-button type="link" size="small" @click="showInstallConfig(item)">接入配置</a-button>
-                    <a-button type="link" size="small" @click="openCredentialModal(item)">凭证配置</a-button>
-                    <a-popconfirm
-                      :title="`确认删除 ${item.name}？删除后需重新安装`"
-                      @confirm="() => handleDeletePackage(item)"
-                    >
-                      <a-button type="link" size="small" danger><DeleteOutlined /> 删除</a-button>
-                    </a-popconfirm>
-                  </div>
+                  <a-button type="link" size="small" @click="showInstallConfig(item)">接入配置</a-button>
+                  <a-button type="link" size="small" @click="openCredentialModal(item)">凭证配置</a-button>
                 </template>
               </a-card>
             </a-list-item>
@@ -141,11 +142,13 @@
                       {{ item.enhancedDescription || item.description }}
                     </div>
                     <div class="tags">
-                      <a-tag size="small" :color="item.autoCategory ? 'purple' : undefined">
-                        {{ item.autoCategory || item.category }}
-                      </a-tag>
                       <span class="tool-count" v-if="item.toolsCount">{{ item.toolsCount }} tools</span>
-                      <span class="version">{{ item.downloads }} downloads</span>
+                      <span class="version" v-if="item.downloads > 0">{{ item.downloads }} downloads</span>
+                      <div class="right-badges">
+                        <a-tag size="small" :color="item.autoCategory ? 'purple' : undefined">
+                          {{ item.autoCategory || item.category }}
+                        </a-tag>
+                      </div>
                     </div>
                   </template>
                 </a-card-meta>
@@ -780,6 +783,7 @@
       justify-content: center;
       color: #fff;
       overflow: hidden;
+      position: relative;
 
       .icon {
         font-size: 48px;
@@ -819,6 +823,21 @@
         }
       }
     }
+
+    .card-delete-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      opacity: 0;
+      transition: opacity 0.18s;
+      background: rgba(255, 255, 255, 0.92) !important;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+      z-index: 10;
+    }
+
+    &:hover .card-delete-btn {
+      opacity: 1;
+    }
   }
 
   .desc {
@@ -833,31 +852,23 @@
 
   .tags {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
+    margin-top: 6px;
 
     .version,
     .tool-count {
       color: #999;
       font-size: 12px;
     }
-  }
 
-  .credential-badge {
-    margin-top: 10px;
-  }
-
-  .action-buttons {
-    display: inline-flex;
-    gap: 8px;
-  }
-
-  .downloads {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    .right-badges {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   }
 
   .config-desc {

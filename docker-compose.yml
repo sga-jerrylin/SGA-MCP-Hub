@@ -61,6 +61,7 @@
       CORS_ORIGIN: http://localhost:3010
       MASTER_KEY_FILE: /run/secrets/master.key
       MARKET_URL: http://host.docker.internal:3100
+      HUB_PUBLIC_URL: http://localhost:8080
     volumes:
       - ./master.key:/run/secrets/master.key:ro
     extra_hosts:

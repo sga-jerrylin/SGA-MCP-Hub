@@ -86,7 +86,7 @@ export class McpController {
         clients: {
           claudeCode: {
             label: 'Claude Code',
-            command: `claude mcp add ${hubName} --transport sse --url ${hubSseUrl}`
+            command: `claude mcp add ${hubName} --transport sse ${hubSseUrl}`
           },
           claudeDesktop: {
             label: 'Claude Desktop',
@@ -329,7 +329,7 @@ export class McpController {
   private resolveHubSseUrl(): string {
     const configured = this.config.get('HUB_PUBLIC_URL')?.trim();
     if (!configured) {
-      return 'http://localhost:3000/api/mcp';
+      return 'http://localhost:8080/api/mcp';
     }
 
     if (configured.endsWith('/api/mcp')) {

@@ -51,16 +51,6 @@
                     />
                     <span v-else class="icon">{{ item.name.charAt(0).toUpperCase() }}</span>
                   </div>
-                  <a-popconfirm
-                    :title="`确认删除 ${item.name}？删除后需重新安装`"
-                    ok-text="删除"
-                    cancel-text="取消"
-                    @confirm="() => handleDeletePackage(item)"
-                  >
-                    <a-button class="card-delete-btn" type="text" danger size="small" shape="circle">
-                      <template #icon><DeleteOutlined /></template>
-                    </a-button>
-                  </a-popconfirm>
                 </template>
 
                 <a-card-meta :title="item.name">
@@ -80,8 +70,28 @@
                 </a-card-meta>
 
                 <template #actions>
-                  <a-button type="link" size="small" @click="showInstallConfig(item)">接入配置</a-button>
-                  <a-button type="link" size="small" @click="openCredentialModal(item)">凭证配置</a-button>
+                  <div class="local-card-actions">
+                    <div class="left">
+                      <a-button type="link" size="small" @click="showInstallConfig(item)">接入配置</a-button>
+                      <a-button type="link" size="small" @click="openCredentialModal(item)">凭证配置</a-button>
+                    </div>
+                    <a-space :size="4">
+                      <a-popconfirm
+                        :title="`确认停用 ${item.name}？`"
+                        @confirm="() => handleDisablePackage(item)"
+                      >
+                        <a-button type="link" size="small" class="btn-warning">停用</a-button>
+                      </a-popconfirm>
+                      <a-popconfirm
+                        :title="`确认删除 ${item.name}？`"
+                        ok-text="删除"
+                        ok-type="danger"
+                        @confirm="() => handleDeletePackage(item)"
+                      >
+                        <a-button type="link" size="small" danger>删除</a-button>
+                      </a-popconfirm>
+                    </a-space>
+                  </div>
                 </template>
               </a-card>
             </a-list-item>
@@ -527,6 +537,16 @@
     }
   };
 
+  const handleDisablePackage = async (pkg: LocalPackage): Promise<void> => {
+    try {
+      await http.delete(`/repo/packages/${pkg.id}`, { params: { disabled: true } });
+      message.success(`${pkg.name} 已停用`);
+      await fetchLocalPackages(localPagination.value.current);
+    } catch {
+      message.error('停用失败，请重试');
+    }
+  };
+
   const showInstallConfig = async (pkg: LocalPackage): Promise<void> => {
     try {
       const res = (await http.get<ApiResponse<InstallConfig>>(
@@ -868,6 +888,26 @@
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+  }
+
+  .local-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 4px;
+
+    .left {
+      display: flex;
+      gap: 4px;
+    }
+  }
+
+  .btn-warning {
+    color: #faad14 !important;
+    &:hover {
+      color: #ffc53d !important;
     }
   }
 

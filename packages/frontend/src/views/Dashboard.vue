@@ -24,14 +24,21 @@
               v-for="sys in upstreamSystems"
               :key="sys.id"
               class="hub-item"
-              :class="{ 'hub-item--active': sys.online }"
+              :class="{ 'hub-item--active': sys.configured }"
             >
-              <span class="hub-item-icon">{{ sys.icon }}</span>
+              <div class="hub-item-icon">
+                <img v-if="sys.logo" :src="normalizeImage(sys.logo)" class="sys-logo" />
+                <span v-else>🔌</span>
+              </div>
               <div class="hub-item-info">
                 <div class="hub-item-name">{{ sys.name }}</div>
-                <div class="hub-item-meta">{{ sys.env }} / {{ sys.auth }}</div>
+                <div class="hub-item-meta">
+                  <a-badge
+                    :status="sys.configured ? 'success' : 'warning'"
+                    :text="sys.configured ? '就绪' : '待配置'"
+                  />
+                </div>
               </div>
-              <span class="hub-dot" :class="sys.online ? 'hub-dot--green' : 'hub-dot--gray'" />
             </div>
             <div v-if="upstreamSystems.length === 0" class="hub-empty">暂无接入</div>
           </div>
@@ -173,9 +180,20 @@
     lastSeen: string;
   }
 
+  interface RuntimeServer {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    credentialsConfigured: boolean;
+    cardImageBase64?: string | null;
+    logoBase64?: string | null;
+  }
+
   const loading = ref(false);
   const summary = ref<DashboardSummary | null>(null);
   const appVersion = ref('--');
+  const installedServers = ref<RuntimeServer[]>([]);
 
   const avgLatencyMs = computed(() => summary.value?.avgLatencyMs ?? 0);
 
@@ -204,7 +222,14 @@
     }));
   });
 
-  const upstreamSystems = computed<UpstreamSystem[]>(() => []);
+  const upstreamSystems = computed(() =>
+    installedServers.value.map((s) => ({
+      id: s.id,
+      name: s.name,
+      logo: s.logoBase64 || s.cardImageBase64,
+      configured: s.credentialsConfigured
+    }))
+  );
 
   const downstreamAgents = ref<DownstreamAgent[]>([]);
 
@@ -220,6 +245,17 @@
     }
   };
 
+  const fetchRuntimeServers = async (): Promise<void> => {
+    try {
+      const res = (await http.get<ApiResponse<RuntimeServer[]>>(
+        '/runtime/servers'
+      )) as unknown as ApiResponse<RuntimeServer[]>;
+      installedServers.value = res.data;
+    } catch {
+      installedServers.value = [];
+    }
+  };
+
   const fetchSystemInfo = async (): Promise<void> => {
     try {
       const res = (await http.get<ApiResponse<{ appVersion: string }>>(
@@ -231,9 +267,13 @@
     }
   };
 
+  const normalizeImage = (value: string): string =>
+    value.startsWith('data:') ? value : `data:image/png;base64,${value}`;
+
   onMounted(() => {
     void fetchDashboard();
     void fetchSystemInfo();
+    void fetchRuntimeServers();
   });
 </script>
 
@@ -362,6 +402,18 @@
     font-size: 18px;
     line-height: 1;
     flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .sys-logo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 4px;
+    }
   }
 
   .hub-item-info {

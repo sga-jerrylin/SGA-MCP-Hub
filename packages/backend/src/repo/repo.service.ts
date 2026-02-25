@@ -164,6 +164,21 @@ export class RepoService implements OnModuleInit {
     });
   }
 
+  public async uninstallPackage(id: string): Promise<void> {
+    // Verify package exists
+    await this.getPackage(id);
+
+    // Delete from Minio
+    const tarballKey = `packages/${id}/package.tgz`;
+    const manifestKey = `packages/${id}/manifest.json`;
+
+    await this.minio.removeObject('packages', tarballKey).catch(() => {});
+    await this.minio.removeObject('packages', manifestKey).catch(() => {});
+
+    // Invalidate cache
+    invalidateRepoCatalog();
+  }
+
   private async readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];

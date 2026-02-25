@@ -331,17 +331,12 @@
 
   const fetchConnectConfig = async (): Promise<void> => {
     try {
-      const res = (await http.get('/mcp/connect')) as unknown as {
-        code: number;
-        data: ConnectResponse;
-      };
-      if (res.code === 0) {
-        hubSseUrl.value = res.data.hubSseUrl;
-        toolCount.value = res.data.toolCount;
-        connected.value = true;
-        configs.value = buildConfigs(res.data.hubSseUrl);
-        return;
-      }
+      const res = (await http.get('/mcp/connect')) as unknown as { data: ConnectResponse };
+      hubSseUrl.value = res.data.hubSseUrl;
+      toolCount.value = res.data.toolCount;
+      connected.value = true;
+      configs.value = buildConfigs(res.data.hubSseUrl);
+      return;
     } catch {
       // Fallback to constructed URL
     }

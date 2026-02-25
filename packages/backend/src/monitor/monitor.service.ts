@@ -198,9 +198,20 @@ export class MonitorService {
               callsWithDuration.length
           );
 
-    const activeServersByCalls = new Set(callsLast24h.map((call) => call.serverId)).size;
     const metrics = await this.getMetrics();
-    const activeServers = Math.min(activeServersByCalls, metrics.totalServers);
+    const servers = await this.runtimeService.listServers().catch(() => []);
+    let readyServers = 0;
+    for (const server of servers) {
+      try {
+        const detail = await this.runtimeService.getServer(server.id);
+        if (detail.credentialsConfigured) {
+          readyServers++;
+        }
+      } catch {
+        // skip broken server
+      }
+    }
+    const activeServers = readyServers;
 
     return {
       topTools: this.getToolStats(),

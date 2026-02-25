@@ -1,4 +1,5 @@
-﻿import { Controller, Get, Req, Res } from '@nestjs/common';
+﻿import type { ApiResponse } from '@sga/shared';
+import { Controller, Get, Req, Res } from '@nestjs/common';
 import { AppConfigService } from '../config/config.service';
 import { RuntimeService } from '../runtime/runtime.service';
 import { MonitorService } from '../monitor/monitor.service';
@@ -61,7 +62,7 @@ export class McpController {
   ) {}
 
   @Get('connect')
-  public async getConnectConfig(): Promise<HubConnectConfig> {
+  public async getConnectConfig(): Promise<ApiResponse<HubConnectConfig>> {
     const hubName = 'sga-mcp-hub';
     const hubSseUrl = this.resolveHubSseUrl();
     const servers = await this.runtimeService.listServers().catch(() => []);
@@ -76,69 +77,73 @@ export class McpController {
     };
 
     return {
-      hubName,
-      hubSseUrl,
-      toolCount,
-      clients: {
-        claudeCode: {
-          label: 'Claude Code',
-          command: `claude mcp add ${hubName} --transport sse --url ${hubSseUrl}`
-        },
-        claudeDesktop: {
-          label: 'Claude Desktop',
-          filePath: '~/.claude_desktop_config.json',
-          config: {
-            mcpServers: {
-              [hubName]: transportConfig
+      code: 0,
+      message: 'ok',
+      data: {
+        hubName,
+        hubSseUrl,
+        toolCount,
+        clients: {
+          claudeCode: {
+            label: 'Claude Code',
+            command: `claude mcp add ${hubName} --transport sse --url ${hubSseUrl}`
+          },
+          claudeDesktop: {
+            label: 'Claude Desktop',
+            filePath: '~/.claude_desktop_config.json',
+            config: {
+              mcpServers: {
+                [hubName]: transportConfig
+              }
             }
-          }
-        },
-        cursor: {
-          label: 'Cursor',
-          filePath: '.cursor/mcp.json',
-          config: {
-            mcpServers: {
-              [hubName]: transportConfig
+          },
+          cursor: {
+            label: 'Cursor',
+            filePath: '.cursor/mcp.json',
+            config: {
+              mcpServers: {
+                [hubName]: transportConfig
+              }
             }
-          }
-        },
-        windsurf: {
-          label: 'Windsurf',
-          filePath: '~/.codeium/windsurf/mcp_config.json',
-          config: {
-            mcpServers: {
-              [hubName]: transportConfig
+          },
+          windsurf: {
+            label: 'Windsurf',
+            filePath: '~/.codeium/windsurf/mcp_config.json',
+            config: {
+              mcpServers: {
+                [hubName]: transportConfig
+              }
             }
-          }
-        },
-        vscode: {
-          label: 'VS Code (Copilot)',
-          filePath: '.vscode/mcp.json',
-          config: {
-            mcpServers: {
-              [hubName]: transportConfig
+          },
+          vscode: {
+            label: 'VS Code (Copilot)',
+            filePath: '.vscode/mcp.json',
+            config: {
+              mcpServers: {
+                [hubName]: transportConfig
+              }
             }
+          },
+          augment: {
+            label: 'Augment Code',
+            instruction: `Open Augment settings and add an MCP SSE server URL: ${hubSseUrl}`
+          },
+          dify: {
+            label: 'Dify',
+            instruction: `Use MCP connector in Dify and set endpoint to ${hubSseUrl}`
+          },
+          hiagent: {
+            label: 'HiAgent',
+            instruction: `Configure HiAgent MCP integration with SSE URL ${hubSseUrl}`
+          },
+          mcpClaw: {
+            label: 'mcp-claw',
+            command: `mcp-claw hub connect ${hubSseUrl}`
+          },
+          genericSse: {
+            label: 'Generic SSE',
+            url: hubSseUrl
           }
-        },
-        augment: {
-          label: 'Augment Code',
-          instruction: `Open Augment settings and add an MCP SSE server URL: ${hubSseUrl}`
-        },
-        dify: {
-          label: 'Dify',
-          instruction: `Use MCP connector in Dify and set endpoint to ${hubSseUrl}`
-        },
-        hiagent: {
-          label: 'HiAgent',
-          instruction: `Configure HiAgent MCP integration with SSE URL ${hubSseUrl}`
-        },
-        mcpClaw: {
-          label: 'mcp-claw',
-          command: `mcp-claw hub connect ${hubSseUrl}`
-        },
-        genericSse: {
-          label: 'Generic SSE',
-          url: hubSseUrl
         }
       }
     };

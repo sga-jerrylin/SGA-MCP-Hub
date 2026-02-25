@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.local
 .env
+master.key
+_ask_codex.ps1
+_tmp_codex_task*.txt

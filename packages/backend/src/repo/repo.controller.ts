@@ -1,5 +1,5 @@
 ﻿import type { ApiResponse, Package, PaginatedList } from '@sga/shared';
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { RepoService } from './repo.service';
 import { AppConfigService } from '../config/config.service';
 import { RuntimeService } from '../runtime/runtime.service';
@@ -140,6 +140,18 @@ export class RepoController {
       code: 0,
       message: 'ok',
       data: await this.repoService.installPackage(id)
+    };
+  }
+
+  @Delete('packages/:id')
+  public async uninstallPackage(
+    @Param('id') id: string
+  ): Promise<ApiResponse<{ deleted: boolean }>> {
+    await this.repoService.uninstallPackage(id);
+    return {
+      code: 0,
+      message: 'ok',
+      data: { deleted: true }
     };
   }
 }

@@ -35,24 +35,29 @@ export class AuthGuard implements CanActivate {
   }
 
   private isWhitelisted(path: string, method: string): boolean {
-    if (path === '/api/auth/login') {
-      return method === 'POST';
+    // Hub is a local/enterprise product — all GET requests are open
+    // Only write operations (POST/PUT/DELETE) require auth
+    if (method === 'GET') {
+      return true;
     }
 
-    if (path === '/api/health') {
-      return method === 'GET';
+    if (path === '/api/auth/login' && method === 'POST') {
+      return true;
     }
 
-    if (path === '/api/monitor/tool-calls') {
-      return method === 'POST';
+    // MCP Gateway and monitoring ingestion
+    if (path === '/api/monitor/tool-calls' && method === 'POST') {
+      return true;
     }
 
-    if (path === '/api/mcp') {
-      return method === 'GET';
+    // CLI sync/push
+    if (path === '/api/sync/push' && method === 'POST') {
+      return true;
     }
 
-    if (path.startsWith('/api/market/')) {
-      return method === 'GET';
+    // Package install from Market
+    if (path === '/api/packages/install' && method === 'POST') {
+      return true;
     }
 
     return this.pathWhitelist.has(path);

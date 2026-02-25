@@ -12,6 +12,81 @@
       </div>
     </div>
 
+    <a-card :bordered="false" class="hub-card">
+      <div class="hub-layout">
+        <div class="hub-side">
+          <div class="hub-side-header">
+            上游业务系统
+            <span class="hub-badge">{{ upstreamSystems.length }}</span>
+          </div>
+          <div class="hub-list">
+            <div
+              v-for="sys in upstreamSystems"
+              :key="sys.id"
+              class="hub-item"
+              :class="{ 'hub-item--active': sys.online }"
+            >
+              <span class="hub-item-icon">{{ sys.icon }}</span>
+              <div class="hub-item-info">
+                <div class="hub-item-name">{{ sys.name }}</div>
+                <div class="hub-item-meta">{{ sys.env }} / {{ sys.auth }}</div>
+              </div>
+              <span class="hub-dot" :class="sys.online ? 'hub-dot--green' : 'hub-dot--gray'" />
+            </div>
+            <div v-if="upstreamSystems.length === 0" class="hub-empty">暂无接入</div>
+          </div>
+        </div>
+
+        <div class="hub-connector">
+          <div class="hub-line" />
+          <div class="hub-arrow-head">▶</div>
+        </div>
+
+        <div class="hub-center">
+          <div class="hub-ring hub-ring--outer">
+            <div class="hub-ring hub-ring--middle">
+              <div class="hub-core">
+                <span class="hub-core-icon">🦀</span>
+                <span class="hub-core-label">Runtime</span>
+              </div>
+            </div>
+          </div>
+          <div class="hub-shards">
+            <span class="hub-shards-num">{{ summary?.activeServers ?? 0 }}</span>
+            <span class="hub-shards-label">SERVERS</span>
+          </div>
+          <div class="hub-center-title">MCP HUB（本机）</div>
+        </div>
+
+        <div class="hub-connector">
+          <div class="hub-arrow-head">▶</div>
+          <div class="hub-line" />
+        </div>
+
+        <div class="hub-side">
+          <div class="hub-side-header">
+            下游 AGENT
+            <span class="hub-badge">{{ downstreamAgents.length }}</span>
+          </div>
+          <div class="hub-list">
+            <div
+              v-for="agent in downstreamAgents"
+              :key="agent.id"
+              class="hub-item hub-item--agent"
+            >
+              <span class="hub-item-icon">{{ agent.icon }}</span>
+              <div class="hub-item-info">
+                <div class="hub-item-name">{{ agent.name }}</div>
+                <div class="hub-item-meta">{{ agent.sub }}</div>
+              </div>
+              <span class="hub-item-time">{{ agent.lastSeen }}</span>
+            </div>
+            <div v-if="downstreamAgents.length === 0" class="hub-empty">暂无连接</div>
+          </div>
+        </div>
+      </div>
+    </a-card>
+
     <a-row :gutter="[16, 16]" class="metrics-row">
       <a-col :xs="24" :sm="12" :xl="6">
         <a-card :bordered="false" :loading="loading">
@@ -81,6 +156,23 @@
   import { computed, onMounted, ref } from 'vue';
   import http from '@/utils/http';
 
+  interface UpstreamSystem {
+    id: string;
+    name: string;
+    env: string;
+    auth: string;
+    icon: string;
+    online: boolean;
+  }
+
+  interface DownstreamAgent {
+    id: string;
+    name: string;
+    sub: string;
+    icon: string;
+    lastSeen: string;
+  }
+
   const loading = ref(false);
   const summary = ref<DashboardSummary | null>(null);
   const appVersion = ref('--');
@@ -111,6 +203,10 @@
       heightPercent: Math.max(4, Math.round((p.count / max) * 100))
     }));
   });
+
+  const upstreamSystems = computed<UpstreamSystem[]>(() => []);
+
+  const downstreamAgents = ref<DownstreamAgent[]>([]);
 
   const fetchDashboard = async (): Promise<void> => {
     loading.value = true;
@@ -143,6 +239,7 @@
 
 <style scoped lang="less">
   @blue: #2563eb;
+  @blue-light: #eff6ff;
   @green: #16a34a;
   @text-primary: #0f172a;
   @text-secondary: #64748b;
@@ -186,11 +283,242 @@
     border-radius: 50%;
     background: @green;
     box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25);
+    animation: pulse 2s infinite;
   }
 
   .status-sep {
     color: #e2e8f0;
     font-size: 14px;
+  }
+
+  .hub-card {
+    border-radius: @card-radius !important;
+
+    :deep(.ant-card-body) {
+      padding: 20px 24px;
+    }
+  }
+
+  .hub-layout {
+    display: flex;
+    align-items: center;
+    min-height: 240px;
+    gap: 0;
+  }
+
+  .hub-side {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hub-side-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: @text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hub-badge {
+    background: @blue;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 10px;
+  }
+
+  .hub-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hub-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fafafa;
+    transition: border-color 0.2s;
+
+    &--active {
+      border-color: #bfdbfe;
+      background: @blue-light;
+    }
+
+    &--agent {
+      background: #f9fafb;
+    }
+  }
+
+  .hub-item-icon {
+    font-size: 18px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .hub-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hub-item-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: @text-primary;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hub-item-meta {
+    font-size: 11px;
+    color: @text-secondary;
+    margin-top: 1px;
+  }
+
+  .hub-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    &--green {
+      background: @green;
+    }
+
+    &--gray {
+      background: #cbd5e1;
+    }
+  }
+
+  .hub-item-time {
+    font-size: 11px;
+    color: @text-secondary;
+    white-space: nowrap;
+  }
+
+  .hub-empty {
+    font-size: 12px;
+    color: @text-secondary;
+    text-align: center;
+    padding: 12px 0;
+    font-style: italic;
+  }
+
+  .hub-connector {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0 8px;
+  }
+
+  .hub-line {
+    width: 40px;
+    height: 2px;
+    background: repeating-linear-gradient(
+      90deg,
+      @blue 0px,
+      @blue 6px,
+      transparent 6px,
+      transparent 12px
+    );
+  }
+
+  .hub-arrow-head {
+    color: @blue;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .hub-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    padding: 0 8px;
+  }
+
+  .hub-ring {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+
+    &--outer {
+      width: 120px;
+      height: 120px;
+      border: 2px dashed #bfdbfe;
+      background: transparent;
+      animation: spin 12s linear infinite;
+    }
+
+    &--middle {
+      width: 92px;
+      height: 92px;
+      border: 2px solid @blue;
+      background: @blue-light;
+      animation: breathe 3s ease-in-out infinite;
+    }
+  }
+
+  .hub-core {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: #1e3a5f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .hub-core-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .hub-core-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #93c5fd;
+    letter-spacing: 0.5px;
+  }
+
+  .hub-shards {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .hub-shards-num {
+    font-size: 22px;
+    font-weight: 800;
+    color: @blue;
+  }
+
+  .hub-shards-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: @text-secondary;
+    letter-spacing: 1px;
+  }
+
+  .hub-center-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: @text-secondary;
+    white-space: nowrap;
   }
 
   .metrics-row :deep(.ant-card) {
@@ -307,15 +635,19 @@
     &--1 {
       background: #ef4444;
     }
+
     &--2 {
       background: #f59e0b;
     }
+
     &--3 {
       background: @blue;
     }
+
     &--4 {
       background: #8b5cf6;
     }
+
     &--5 {
       background: #64748b;
     }
@@ -345,5 +677,35 @@
     font-weight: 700;
     color: @blue;
     flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25);
+    }
+
+    50% {
+      box-shadow: 0 0 0 5px rgba(22, 163, 74, 0.08);
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.04);
+    }
   }
 </style>

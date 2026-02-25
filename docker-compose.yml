@@ -1,36 +1,89 @@
-services:
+﻿services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sga-hub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hub
+      POSTGRES_USER: hub
+      POSTGRES_PASSWORD: hub
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hub -d hub']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sga-hub-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: sga-hub-minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ..
       dockerfile: sga-mcp-hub/packages/backend/Dockerfile
-    container_name: mcp-claw-backend
+    container_name: sga-hub-backend
     restart: unless-stopped
     ports:
       - '8080:8080'
     environment:
       NODE_ENV: production
       PORT: 8080
-      DATABASE_URL: postgres://mcp:mcp_dev@host.docker.internal:5432/mcp_claw_dev
-      REDIS_URL: redis://host.docker.internal:6379
-      MINIO_ENDPOINT: host.docker.internal
+      DATABASE_URL: postgres://hub:hub@postgres:5432/hub
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      CORS_ORIGIN: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3010
       MASTER_KEY_FILE: /run/secrets/master.key
       MARKET_URL: http://host.docker.internal:3100
     volumes:
       - ./master.key:/run/secrets/master.key:ro
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
   frontend:
     build:
       context: ..
       dockerfile: sga-mcp-hub/packages/frontend/Dockerfile
-    container_name: mcp-claw-frontend
+    container_name: sga-hub-frontend
     restart: unless-stopped
     ports:
       - '3010:80'
     depends_on:
       - backend
+
+volumes:
+  pgdata: {}
+  miniodata: {}

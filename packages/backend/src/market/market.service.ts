@@ -35,8 +35,21 @@ export class MarketService {
         return { items: [], total: 0 };
       }
 
-      const body = (await response.json()) as { data?: MarketPackageResult };
-      return body.data ?? { items: [], total: 0 };
+      const body = (await response.json()) as unknown;
+      if (Array.isArray(body)) {
+        return { items: body as Package[], total: body.length };
+      }
+      const obj = body as Record<string, unknown>;
+      if (obj?.data && typeof obj.data === 'object') {
+        const data = obj.data as Record<string, unknown>;
+        if (Array.isArray(data.items)) {
+          return data as unknown as MarketPackageResult;
+        }
+      }
+      if (obj?.items && Array.isArray(obj.items)) {
+        return obj as unknown as MarketPackageResult;
+      }
+      return { items: [], total: 0 };
     } catch (error) {
       this.logger.warn(`Failed to reach Market at ${marketUrl}: ${error}`);
       return { items: [], total: 0 };
@@ -59,8 +72,15 @@ export class MarketService {
         return null;
       }
 
-      const body = (await response.json()) as { data?: Package };
-      return body.data ?? null;
+      const body = (await response.json()) as unknown;
+      const obj = body as Record<string, unknown>;
+      if (obj && typeof obj.id === 'string') {
+        return obj as unknown as Package;
+      }
+      if (obj?.data && typeof obj.data === 'object') {
+        return obj.data as Package;
+      }
+      return null;
     } catch (error) {
       this.logger.warn(`Failed to fetch package ${packageId} from Market: ${error}`);
       return null;
@@ -98,6 +118,12 @@ export class MarketService {
 
     const savedUrl = (await this.adminService.getSetting('market.url'))?.trim();
     if (savedUrl) {
+      if (savedUrl.includes('localhost') || savedUrl.includes('127.0.0.1')) {
+        const envUrl = this.config.get('MARKET_URL');
+        if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+          return envUrl;
+        }
+      }
       return savedUrl;
     }
     return this.config.get('MARKET_URL');

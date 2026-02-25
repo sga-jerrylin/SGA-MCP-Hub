@@ -33,7 +33,12 @@ export class RuntimeService {
     return sidecars.map((sidecar) => this.toServer(sidecar.manifest, sidecar.pushedAt));
   }
 
-  public async getServer(id: string): Promise<McpServerDetail & { credentialsConfigured: boolean }> {
+  public async getServer(id: string): Promise<
+    McpServerDetail & {
+      credentialsConfigured: boolean;
+      credentialStatus: Array<{ keyName: string; description?: string; configured: boolean }>;
+    }
+  > {
     const sidecar = await this.readManifestSidecarById(id).catch(() => null);
     if (!sidecar) {
       throw new NotFoundException(`Server ${id} not found`);
@@ -41,11 +46,36 @@ export class RuntimeService {
 
     const base = this.toServer(sidecar.manifest, sidecar.pushedAt);
     const tools = this.toTools(sidecar.manifest);
-    const credentials = await this.vault.listKeys('default', id).catch(() => []);
+    // CLI manifest uses "credentials" with {key, label, type, required, description}
+    // Map to {keyName, description} for credential status check
+    const manifestAny = sidecar.manifest as unknown as Record<string, unknown>;
+    const rawCreds = Array.isArray(manifestAny.credentials)
+      ? manifestAny.credentials
+      : Array.isArray(manifestAny.requiredCredentials)
+        ? manifestAny.requiredCredentials
+        : [];
+    const requiredCreds: Array<{ keyName: string; description?: string }> = rawCreds
+      .filter((c): c is Record<string, unknown> => isRecord(c))
+      .map((c) => ({
+        keyName: String(c.key ?? c.keyName ?? ''),
+        description: typeof c.description === 'string' ? c.description : typeof c.label === 'string' ? c.label : undefined
+      }))
+      .filter((c) => c.keyName.length > 0);
+
+    const configuredKeys = await this.vault.listKeys('default', id).catch(() => []);
+    const configuredKeyNames = new Set(configuredKeys.map((k) => k.keyName));
+
+    const credentialStatus = requiredCreds.map((rc) => ({
+      keyName: rc.keyName,
+      description: rc.description,
+      configured: configuredKeyNames.has(rc.keyName)
+    }));
 
     return {
       ...base,
-      credentialsConfigured: credentials.length > 0,
+      credentialsConfigured:
+        requiredCreds.length === 0 || credentialStatus.every((c) => c.configured),
+      credentialStatus,
       tools,
       metrics: {
         qps: 0,

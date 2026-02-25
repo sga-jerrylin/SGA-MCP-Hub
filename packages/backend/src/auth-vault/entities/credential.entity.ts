@@ -13,7 +13,7 @@ export class CredentialEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column('uuid')
+  @Column({ length: 50 })
   @Index()
   tenantId!: string;
 

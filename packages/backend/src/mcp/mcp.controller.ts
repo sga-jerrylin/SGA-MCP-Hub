@@ -15,6 +15,7 @@ interface SseResponse {
 
 interface IncomingRequest {
   query: Record<string, string | undefined>;
+  headers?: Record<string, string | string[] | undefined>;
   on(event: string, handler: (...args: unknown[]) => void): void;
 }
 
@@ -54,6 +55,11 @@ interface HubConnectConfig {
   hubSseUrl: string;
   toolCount: number;
   clients: HubConnectClientConfig;
+}
+
+interface McpSessionsResponse {
+  count: number;
+  sessions: Array<{ sessionId: string; connectedAt: string }>;
 }
 
 @Controller('mcp')
@@ -164,6 +170,9 @@ export class McpController {
 
     const sessionId = randomUUID();
     this.sessions.set(sessionId, res);
+    const rawUserAgent = req.headers?.['user-agent'];
+    const userAgent = Array.isArray(rawUserAgent) ? rawUserAgent[0] : rawUserAgent;
+    this.monitorService.recordDownstreamSessionConnected(sessionId, userAgent);
 
     // MCP SSE protocol: endpoint event data is a plain URL string
     res.write(`event: endpoint\ndata: /api/mcp?sessionId=${sessionId}\n\n`);
@@ -175,7 +184,20 @@ export class McpController {
     req.on('close', () => {
       clearInterval(heartbeat as unknown as number);
       this.sessions.delete(sessionId);
+      this.monitorService.recordDownstreamSessionDisconnected(sessionId);
     });
+  }
+
+  @Get('sessions')
+  public getSessions(): McpSessionsResponse {
+    const snapshot = this.monitorService.getDownstreamSessions();
+    return {
+      count: snapshot.count,
+      sessions: snapshot.sessions.map((item) => ({
+        sessionId: item.sessionId,
+        connectedAt: item.connectedAt
+      }))
+    };
   }
 
   @Post()
@@ -279,9 +301,17 @@ export class McpController {
       };
     }
 
-    const serverId = toolName.slice(0, dotIndex);
+    const serverName = toolName.slice(0, dotIndex);
 
     try {
+      const serverId = await this.runtimeService.findServerIdByName(serverName);
+      if (!serverId) {
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32602, message: `Server not found: ${serverName}` }
+        };
+      }
       const detail = await this.runtimeService.getServer(serverId);
       const matchedTool = detail.tools.find((tool) => tool.name === toolName);
       if (!matchedTool) {
@@ -292,25 +322,27 @@ export class McpController {
         };
       }
 
-      this.monitorService.recordToolCall(serverId, detail.name, toolName, 0);
+      const bareName = toolName.slice(dotIndex + 1);
+      const startedAt = Date.now();
+      const callResult = await this.runtimeService.callTool(
+        detail.id,
+        bareName,
+        params?.arguments ?? {}
+      );
+      const durationMs = Date.now() - startedAt;
+      this.monitorService.recordToolCall(detail.id, detail.name, toolName, durationMs);
 
       return {
         jsonrpc: '2.0',
         id,
-        result: {
-          content: [
-            {
-              type: 'text',
-              text: `Tool ${toolName} executed successfully (stub)`
-            }
-          ]
-        }
+        result: callResult
       };
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       return {
         jsonrpc: '2.0',
         id,
-        error: { code: -32603, message: `Server ${serverId} not available` }
+        error: { code: -32603, message }
       };
     }
   }

@@ -843,21 +843,6 @@
         }
       }
     }
-
-    .card-delete-btn {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      opacity: 0;
-      transition: opacity 0.18s;
-      background: rgba(255, 255, 255, 0.92) !important;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-      z-index: 10;
-    }
-
-    &:hover .card-delete-btn {
-      opacity: 1;
-    }
   }
 
   .desc {

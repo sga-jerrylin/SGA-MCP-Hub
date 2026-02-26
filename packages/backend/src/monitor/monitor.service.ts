@@ -44,6 +44,7 @@ export interface DashboardSummary {
   totalCallsLast24h: number;
   successRate: number;
   avgLatencyMs: number;
+  downstreamCount: number;
   hourlyTrend: HourlyCount[];
   activeServers: number;
   totalPackages: number;
@@ -57,6 +58,13 @@ export class MonitorService {
 
   private readonly auditLogs: AuditLog[] = [];
   private readonly toolCalls: ToolCallRecord[] = [];
+  private readonly downstreamSessions = new Map<
+    string,
+    {
+      connectedAt: Date;
+      userAgent?: string;
+    }
+  >();
 
   public async getMetrics(): Promise<SystemMetricsSnapshot> {
     const memoryUsage = process.memoryUsage();
@@ -93,6 +101,35 @@ export class MonitorService {
       resource,
       createdAt: new Date().toISOString()
     });
+  }
+
+  public recordDownstreamSessionConnected(sessionId: string, userAgent?: string): void {
+    this.downstreamSessions.set(sessionId, {
+      connectedAt: new Date(),
+      userAgent
+    });
+  }
+
+  public recordDownstreamSessionDisconnected(sessionId: string): void {
+    this.downstreamSessions.delete(sessionId);
+  }
+
+  public getDownstreamSessions(): {
+    count: number;
+    sessions: Array<{ sessionId: string; connectedAt: string; userAgent?: string }>;
+  } {
+    const sessions = Array.from(this.downstreamSessions.entries())
+      .map(([sessionId, info]) => ({
+        sessionId,
+        connectedAt: info.connectedAt.toISOString(),
+        ...(info.userAgent ? { userAgent: info.userAgent } : {})
+      }))
+      .sort((a, b) => b.connectedAt.localeCompare(a.connectedAt));
+
+    return {
+      count: sessions.length,
+      sessions
+    };
   }
 
   public recordToolCall(
@@ -218,6 +255,7 @@ export class MonitorService {
       totalCallsLast24h: callsLast24h.length,
       successRate,
       avgLatencyMs,
+      downstreamCount: this.downstreamSessions.size,
       hourlyTrend,
       activeServers,
       totalPackages: metrics.totalPackages,

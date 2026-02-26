@@ -79,33 +79,15 @@ export class MarketController {
   public async installFromMarket(
     @Body() body: { packageId: string },
   ): Promise<ApiResponse<{ packageId: string; manifest: Package }>> {
-    const pkg = await this.marketService.fetchPackageById(body.packageId);
-    if (!pkg) {
-      throw new NotFoundException(`Package ${body.packageId} not found in Market`);
-    }
-
-    // Write manifest sidecar to local MinIO so the package appears in Hub's repo
-    const sidecar = {
-      packageId: pkg.id,
-      manifest: pkg,
-      pushedAt: new Date().toISOString(),
-    };
-    const buffer = Buffer.from(JSON.stringify(sidecar), 'utf8');
-    await this.minio.putObject(
-      'packages',
-      `packages/${pkg.id}/manifest.json`,
-      buffer,
-    );
-
-    invalidateRepoCatalog();
+    const installed = await this.repoService.installPackage(body.packageId);
 
     // Record audit log
-    this.monitorService.recordAuditLog('market.install', 'system', pkg.id);
+    this.monitorService.recordAuditLog('market.install', 'system', installed.packageId);
 
     return {
       code: 0,
       message: 'ok',
-      data: { packageId: pkg.id, manifest: pkg },
+      data: { packageId: installed.packageId, manifest: installed.manifest },
     };
   }
 }

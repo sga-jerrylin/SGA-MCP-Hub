@@ -62,37 +62,42 @@ export class RepoService implements OnModuleInit {
   public async installPackage(
     id: string
   ): Promise<{ packageId: string; pullUrl: string; manifest: Package }> {
-    // Try hub local repo first, then fall back to market
-    let manifest: Package | null = null;
-    try {
-      manifest = await this.getPackage(id);
-    } catch {
-      // Not in hub's local repo, try to install from market
-      manifest = await this.marketService.fetchPackageById(id);
-      if (!manifest) {
-        throw new NotFoundException(`Package ${id} not found in hub or market`);
-      }
-      // Download tarball from market and store in hub's MinIO
-      const tarball = await this.marketService.downloadPackageTarball(id);
-      if (tarball) {
-        const tarballKey = `packages/${id}/package.tgz`;
-        await this.minio.putObject('packages', tarballKey, tarball);
-        // Store manifest sidecar
-        const sidecar = Buffer.from(JSON.stringify({
+    const manifest = await this.marketService.fetchPackageById(id);
+    if (!manifest) {
+      throw new NotFoundException(`Package ${id} not found in Market`);
+    }
+
+    const tarball = await this.marketService.downloadPackageTarball(id);
+    if (!tarball) {
+      throw new NotFoundException(`Package ${id} tarball not found in Market`);
+    }
+
+    const tarballKey = `packages/${id}/package.tgz`;
+    const manifestKey = `packages/${id}/manifest.json`;
+
+    // Force reinstall behavior: remove previous artifacts then store fresh download.
+    await this.minio.removeObject('packages', tarballKey).catch(() => {});
+    await this.minio.removeObject('packages', manifestKey).catch(() => {});
+
+    await this.minio.putObject('packages', tarballKey, tarball);
+    const sidecar = Buffer.from(
+      JSON.stringify(
+        {
           packageId: id,
           manifest,
           pushedAt: new Date().toISOString()
-        }, null, 2));
-        const manifestKey = `packages/${id}/manifest.json`;
-        await this.minio.putObject('packages', manifestKey, sidecar);
-        invalidateRepoCatalog();
-      }
-    }
+        },
+        null,
+        2
+      )
+    );
+    await this.minio.putObject('packages', manifestKey, sidecar);
+    invalidateRepoCatalog();
 
     return {
       packageId: id,
       pullUrl: `/api/sync/pull/${id}`,
-      manifest: manifest!
+      manifest
     };
   }
 

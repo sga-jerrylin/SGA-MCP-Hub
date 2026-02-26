@@ -189,14 +189,18 @@ export class McpController {
   }
 
   @Get('sessions')
-  public getSessions(): McpSessionsResponse {
+  public getSessions(): ApiResponse<McpSessionsResponse> {
     const snapshot = this.monitorService.getDownstreamSessions();
     return {
-      count: snapshot.count,
-      sessions: snapshot.sessions.map((item) => ({
-        sessionId: item.sessionId,
-        connectedAt: item.connectedAt
-      }))
+      code: 0,
+      message: 'ok',
+      data: {
+        count: snapshot.count,
+        sessions: snapshot.sessions.map((item) => ({
+          sessionId: item.sessionId,
+          connectedAt: item.connectedAt
+        }))
+      }
     };
   }
 

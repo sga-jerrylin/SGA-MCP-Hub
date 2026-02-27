@@ -422,7 +422,7 @@ export class RuntimeService {
         const bareName = (parts[parts.length - 1] || trimmed).trim();
 
         return {
-          name: `${pkg.name}.${bareName}`,
+          name: `${pkg.name}__${bareName}`,
           ...(typeof tool.description === 'string' ? { description: tool.description } : {}),
           inputSchema: isRecord(tool.inputSchema)
             ? tool.inputSchema
@@ -441,7 +441,7 @@ export class RuntimeService {
 
     for (let index = 0; index < count; index += 1) {
       tools.push({
-        name: `${pkg.name}.tool_${index + 1}`,
+        name: `${pkg.name}__tool_${index + 1}`,
         description: `Generated tool ${index + 1} for ${pkg.name}`
       });
     }

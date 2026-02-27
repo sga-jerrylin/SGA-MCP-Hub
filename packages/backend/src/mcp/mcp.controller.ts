@@ -296,8 +296,8 @@ export class McpController {
       };
     }
 
-    const dotIndex = toolName.indexOf('.');
-    if (dotIndex < 0) {
+    const sepIndex = toolName.indexOf('__');
+    if (sepIndex < 0) {
       return {
         jsonrpc: '2.0',
         id,
@@ -305,7 +305,7 @@ export class McpController {
       };
     }
 
-    const serverName = toolName.slice(0, dotIndex);
+    const serverName = toolName.slice(0, sepIndex);
 
     try {
       const serverId = await this.runtimeService.findServerIdByName(serverName);
@@ -326,7 +326,7 @@ export class McpController {
         };
       }
 
-      const bareName = toolName.slice(dotIndex + 1);
+      const bareName = toolName.slice(sepIndex + 2);
       const startedAt = Date.now();
       const callResult = await this.runtimeService.callTool(
         detail.id,

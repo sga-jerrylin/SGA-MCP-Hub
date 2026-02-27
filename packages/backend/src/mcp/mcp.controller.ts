@@ -216,6 +216,12 @@ export class McpController {
       return;
     }
 
+    // JSON-RPC 2.0: notifications have no id — must NOT send a response
+    if (body.id === undefined || body.id === null) {
+      res.status(202).json({ ok: true });
+      return;
+    }
+
     const rpcResponse = await this.handleJsonRpc(body);
     this.sendSseEvent(sseRes, 'message', rpcResponse);
     res.status(202).json({ ok: true });

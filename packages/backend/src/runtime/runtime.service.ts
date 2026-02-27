@@ -5,7 +5,7 @@
   Package,
   ToolsListResponse
 } from '@sga/shared';
-import { ChildProcess, execFile, spawn } from 'node:child_process';
+import { ChildProcessWithoutNullStreams, execFile, spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,10 +24,12 @@ interface ManifestSidecar {
 }
 
 interface ManagedProcess {
-  child: ChildProcess;
+  child: ChildProcessWithoutNullStreams;
   pending: Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>;
   nextId: number;
-  stdoutBuf: string;
+  stdoutBuf: Buffer;
+  stdoutTextBuf: string;
+  stderrBuf: string;
 }
 
 interface McpCallResult {
@@ -273,27 +275,31 @@ export class RuntimeService {
 
     const child = spawn('node', [entryPath], {
       cwd: runDir,
-      stdio: ['pipe', 'pipe', 'inherit'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
         ...credentialEnv
       }
-    });
-
-    if (!child.stdin || !child.stdout) {
-      throw new Error('Failed to start package process: stdio pipe unavailable');
-    }
+    }) as ChildProcessWithoutNullStreams;
 
     const managed: ManagedProcess = {
       child,
       pending: new Map(),
       nextId: 1,
-      stdoutBuf: ''
+      stdoutBuf: Buffer.alloc(0),
+      stdoutTextBuf: '',
+      stderrBuf: ''
     };
 
     child.stdout.on('data', (chunk: Buffer) => {
-      managed.stdoutBuf += chunk.toString('latin1');
+      managed.stdoutBuf = Buffer.concat([managed.stdoutBuf, chunk]);
       this.drainStdoutBuffer(managed);
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      managed.stderrBuf += chunk.toString('utf8');
+      if (managed.stderrBuf.length > 8192) {
+        managed.stderrBuf = managed.stderrBuf.slice(-8192);
+      }
     });
 
     child.on('exit', (code, signal) => {
@@ -301,7 +307,7 @@ export class RuntimeService {
       for (const [, pending] of managed.pending) {
         pending.reject(
           new Error(
-            `Package process exited before response (code=${code ?? 'null'}, signal=${signal ?? 'null'})`
+            `Package process exited before response (code=${code ?? 'null'}, signal=${signal ?? 'null'})${this.formatProcessDiagnostics(managed)}`
           )
         );
       }
@@ -312,24 +318,36 @@ export class RuntimeService {
     this.logger.log(`Started package process for ${serverId}`);
 
     try {
-      const initializeId = managed.nextId++;
-      const initResponse = (await this.sendRpc(
-        managed,
-        {
-          jsonrpc: '2.0',
-          id: initializeId,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: {
-              name: 'sga-mcp-hub',
-              version: '0.1.0'
-            }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const initializeRequest = {
+        jsonrpc: '2.0' as const,
+        id: managed.nextId++,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: {
+            name: 'sga-mcp-hub',
+            version: '0.1.0'
           }
-        },
-        15_000
-      )) as { error?: { message?: string } };
+        }
+      };
+
+      let initResponse: { error?: { message?: string } };
+      try {
+        initResponse = (await this.sendRpc(managed, initializeRequest, 3_000)) as {
+          error?: { message?: string };
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes('Tool call timeout')) {
+          throw error;
+        }
+        initResponse = (await this.sendRpc(managed, initializeRequest, 12_000)) as {
+          error?: { message?: string };
+        };
+      }
 
       if (initResponse.error) {
         throw new Error(initResponse.error.message ?? 'initialize failed');
@@ -432,64 +450,69 @@ export class RuntimeService {
   }
 
   private drainStdoutBuffer(managed: ManagedProcess): void {
-    const buffer = Buffer.from(managed.stdoutBuf, 'latin1');
-    let offset = 0;
+    const headerSeparator = Buffer.from('\r\n\r\n');
 
-    while (offset < buffer.length) {
-      const headerEnd = buffer.indexOf('\r\n\r\n', offset, 'utf8');
+    // Preferred MCP stdio framing parser.
+    while (managed.stdoutBuf.length > 0) {
+      const headerEnd = managed.stdoutBuf.indexOf(headerSeparator);
       if (headerEnd < 0) {
         break;
       }
 
-      const headerText = buffer.toString('utf8', offset, headerEnd);
-      const match = /Content-Length:\s*(\d+)/i.exec(headerText);
-      if (!match) {
-        offset = headerEnd + 4;
+      const headerText = managed.stdoutBuf.slice(0, headerEnd).toString('utf8');
+      const lengthMatch = /Content-Length:\s*(\d+)/i.exec(headerText);
+      if (!lengthMatch) {
+        const nonMcp = managed.stdoutBuf
+          .slice(0, headerEnd + headerSeparator.length)
+          .toString('utf8')
+          .trim();
+        if (nonMcp) {
+          managed.stdoutTextBuf += nonMcp + '\n';
+          if (managed.stdoutTextBuf.length > 8192) {
+            managed.stdoutTextBuf = managed.stdoutTextBuf.slice(-8192);
+          }
+        }
+        managed.stdoutBuf = managed.stdoutBuf.slice(headerEnd + headerSeparator.length);
         continue;
       }
 
-      const length = Number(match[1]);
-      if (!Number.isFinite(length) || length < 0) {
-        offset = headerEnd + 4;
+      const payloadLength = Number(lengthMatch[1]);
+      if (!Number.isFinite(payloadLength) || payloadLength < 0) {
+        managed.stdoutBuf = managed.stdoutBuf.slice(headerEnd + headerSeparator.length);
         continue;
       }
 
-      const bodyStart = headerEnd + 4;
-      const bodyEnd = bodyStart + length;
-      if (buffer.length < bodyEnd) {
+      const payloadStart = headerEnd + headerSeparator.length;
+      const payloadEnd = payloadStart + payloadLength;
+      if (managed.stdoutBuf.length < payloadEnd) {
         break;
       }
 
-      const body = buffer.toString('utf8', bodyStart, bodyEnd);
-      offset = bodyEnd;
-
-      try {
-        const message = JSON.parse(body) as { id?: number | string | null };
-        if (typeof message.id === 'number' || typeof message.id === 'string') {
-          const responseId = Number(message.id);
-          if (Number.isFinite(responseId)) {
-            const pending = managed.pending.get(responseId);
-            if (pending) {
-              managed.pending.delete(responseId);
-              pending.resolve(message);
-            }
-          }
-        }
-      } catch {
-        // Ignore malformed message and continue parsing subsequent frames.
-      }
+      const payloadText = managed.stdoutBuf.slice(payloadStart, payloadEnd).toString('utf8');
+      managed.stdoutBuf = managed.stdoutBuf.slice(payloadEnd);
+      this.resolvePendingFromPayload(managed, payloadText);
     }
 
-    managed.stdoutBuf = buffer.subarray(offset).toString('latin1');
+    // Compatibility fallback: line-delimited JSON.
+    if (managed.stdoutBuf.length > 0) {
+      const text = managed.stdoutBuf.toString('utf8');
+      const lastNewline = text.lastIndexOf('\n');
+      if (lastNewline >= 0) {
+        const complete = text.slice(0, lastNewline);
+        managed.stdoutBuf = Buffer.from(text.slice(lastNewline + 1), 'utf8');
+        for (const line of complete.split('\n')) {
+          const trimmed = line.replace(/\r$/, '').trim();
+          if (!trimmed) {
+            continue;
+          }
+          this.resolvePendingFromPayload(managed, trimmed);
+        }
+      }
+    }
   }
 
   private writeMessage(managed: ManagedProcess, message: Record<string, unknown>): void {
-    if (!managed.child.stdin) {
-      throw new Error('Failed to write RPC message: stdin unavailable');
-    }
-    const body = Buffer.from(JSON.stringify(message), 'utf8');
-    const header = Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, 'utf8');
-    managed.child.stdin.write(Buffer.concat([header, body]));
+    managed.child.stdin.write(JSON.stringify(message) + '\n');
   }
 
   private async sendRpc(
@@ -500,7 +523,7 @@ export class RuntimeService {
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         managed.pending.delete(request.id);
-        reject(new Error('Tool call timeout'));
+        reject(new Error(`Tool call timeout${this.formatProcessDiagnostics(managed)}`));
       }, timeoutMs);
 
       managed.pending.set(request.id, {
@@ -577,7 +600,55 @@ export class RuntimeService {
       }
     }
 
+    // Backward compatibility for older manifests/credentials:
+    // generated MCP servers read BASE_URL but some packages were configured with SGA_WEB_BASE_URL.
+    if (!env.BASE_URL && env.SGA_WEB_BASE_URL) {
+      env.BASE_URL = env.SGA_WEB_BASE_URL;
+    }
+
     return env;
+  }
+
+  private resolvePendingFromPayload(managed: ManagedProcess, payloadText: string): void {
+    try {
+      const message = JSON.parse(payloadText) as { id?: number | string | null };
+      if (typeof message.id === 'number' || typeof message.id === 'string') {
+        const responseId = Number(message.id);
+        if (Number.isFinite(responseId)) {
+          const pending = managed.pending.get(responseId);
+          if (pending) {
+            managed.pending.delete(responseId);
+            pending.resolve(message);
+            return;
+          }
+        }
+      }
+    } catch {
+      // ignore and save as diagnostics below
+    }
+
+    const normalized = payloadText.trim();
+    if (normalized.length > 0) {
+      managed.stdoutTextBuf += normalized + '\n';
+      if (managed.stdoutTextBuf.length > 8192) {
+        managed.stdoutTextBuf = managed.stdoutTextBuf.slice(-8192);
+      }
+    }
+  }
+
+  private formatProcessDiagnostics(managed: ManagedProcess): string {
+    const stderr = managed.stderrBuf.trim();
+    const stdout = managed.stdoutTextBuf.trim();
+    const parts: string[] = [];
+
+    if (stderr.length > 0) {
+      parts.push(`stderr: ${stderr.slice(-400)}`);
+    }
+    if (stdout.length > 0) {
+      parts.push(`stdout: ${stdout.slice(-400)}`);
+    }
+
+    return parts.length > 0 ? ` (${parts.join(' | ')})` : '';
   }
 
   private async pathExists(path: string): Promise<boolean> {
@@ -601,4 +672,3 @@ export class RuntimeService {
     });
   }
 }
-

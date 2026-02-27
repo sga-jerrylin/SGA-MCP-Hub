@@ -1,8 +1,11 @@
 import type { Package, PaginatedList } from '@sga/shared';
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import type * as Minio from 'minio';
+import { Repository } from 'typeorm';
 import { MinioService } from '../storage/minio.service';
 import { MarketService } from '../market/market.service';
+import { ToolCatalogEntity } from './entities/tool-catalog.entity';
 
 interface ManifestSidecar {
   packageId: string;
@@ -18,11 +21,14 @@ export function invalidateRepoCatalog(): void {
 
 @Injectable()
 export class RepoService implements OnModuleInit {
+  private readonly logger = new Logger(RepoService.name);
   private cachedCatalog: { version: number; items: Package[] } | null = null;
 
   public constructor(
     private readonly minio: MinioService,
-    private readonly marketService: MarketService
+    private readonly marketService: MarketService,
+    @InjectRepository(ToolCatalogEntity)
+    private readonly toolCatalogRepo: Repository<ToolCatalogEntity>
   ) {}
 
   public async onModuleInit(): Promise<void> {
@@ -92,6 +98,10 @@ export class RepoService implements OnModuleInit {
       )
     );
     await this.minio.putObject('packages', manifestKey, sidecar);
+    await this.ingestToolCatalog(id, manifest).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[ToolCatalog] Ingest failed for ${id}: ${message}`);
+    });
     invalidateRepoCatalog();
 
     return {
@@ -194,5 +204,87 @@ export class RepoService implements OnModuleInit {
       stream.on('end', () => resolve(Buffer.concat(chunks)));
       stream.on('error', reject);
     });
+  }
+
+  private parseToolsFromManifest(manifest: Record<string, unknown>): Array<Record<string, unknown>> {
+    if (Array.isArray(manifest.tools)) {
+      return manifest.tools.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+      );
+    }
+
+    if (Array.isArray(manifest.toolsSummary)) {
+      return manifest.toolsSummary.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+      );
+    }
+
+    if (typeof manifest.toolsSummary === 'string') {
+      try {
+        const parsed = JSON.parse(manifest.toolsSummary) as unknown;
+        if (!Array.isArray(parsed)) {
+          return [];
+        }
+        return parsed.filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+        );
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  }
+
+  private async ingestToolCatalog(packageId: string, manifest: Package): Promise<void> {
+    const manifestRecord = manifest as unknown as Record<string, unknown>;
+    const tools = this.parseToolsFromManifest(manifestRecord);
+    if (tools.length === 0) {
+      return;
+    }
+
+    const schemaVersion = manifestRecord.manifestSchemaVersion === 'v2' ? 'v2' : 'legacy';
+    const source = schemaVersion === 'v2' ? 'manifest' : 'summary';
+    const rawTags = Array.isArray(manifestRecord.tags) ? manifestRecord.tags : [];
+    const tags = rawTags.filter((item): item is string => typeof item === 'string');
+
+    for (const tool of tools) {
+      const toolName = typeof tool.name === 'string' ? tool.name.trim() : '';
+      if (!toolName) {
+        continue;
+      }
+
+      const fullName = `${packageId}.${toolName}`;
+      const inputSchemaValue =
+        tool.inputSchema && typeof tool.inputSchema === 'object'
+          ? (tool.inputSchema as Record<string, unknown>)
+          : ({} as Record<string, unknown>);
+      const upsertPayload = {
+        packageId,
+        packageName: manifest.name ?? packageId,
+        category: manifest.category ?? null,
+        tags,
+        toolName,
+        fullName,
+        description: typeof tool.description === 'string' ? tool.description : null,
+        inputSchema: inputSchemaValue,
+        schemaVersion,
+        source,
+        updatedAt: new Date()
+      };
+
+      await this.toolCatalogRepo.upsert(
+        upsertPayload as any,
+        {
+          conflictPaths: ['packageId', 'toolName'],
+          skipUpdateIfNoValuesChanged: true
+        }
+      );
+    }
+
+    this.logger.log(`[ToolCatalog] Ingested ${tools.length} tools for ${packageId} (${schemaVersion})`);
   }
 }
